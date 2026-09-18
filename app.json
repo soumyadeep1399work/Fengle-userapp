@@ -1,17 +1,19 @@
 {
   "expo": {
-    "name": "userapp",
-    "slug": "userapp",
+    "name": "Fengle",
+    "slug": "fengle-customer-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "backgroundColor": "#4B18A6",
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "com.fengle.customer",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#4B18A6",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -20,6 +22,19 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-font",
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#4B18A6",
+          "image": "./assets/fengle-logo.png",
+          "imageWidth": 120,
+          "resizeMode": "contain"
+        }
+      ]
+    ]
   }
 }
