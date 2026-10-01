@@ -11,7 +11,7 @@ const PAY_LABEL: Record<string, string> = {
   card: 'Card',
   netbanking: 'Net banking',
   cod: COD_PAY_LABEL,
-  wallet: 'Platter credits',
+  wallet: 'Fengle credits',
 };
 
 export const STATUS_STEP: Record<string, number> = {

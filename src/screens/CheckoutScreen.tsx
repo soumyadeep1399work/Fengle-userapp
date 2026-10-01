@@ -73,7 +73,7 @@ export default function CheckoutScreen({ navigation }: Props) {
     loadMethods();
   }, [loadMethods]);
 
-  // Platter credits pays the whole bill or nothing, so it can't be chosen when short.
+  // Fengle credits pays the whole bill or nothing, so it can't be chosen when short.
   const isSelectable = (m: PaymentMethodOption) => m.enabled && !(m.id === 'wallet' && (m.balance ?? 0) < toPay);
   const chosen = methods.find((m) => m.id === pay && isSelectable(m)) ?? methods.find(isSelectable) ?? null;
   const canPay = !!address && billReady && !!chosen && !placing;
@@ -95,7 +95,7 @@ export default function CheckoutScreen({ navigation }: Props) {
     }
     if (!razorpayKeyId) {
       await cancelOrderRequest(order.id).catch(() => {});
-      Alert.alert('Online payment isn’t available yet', 'Please choose Cash on delivery or Platter credits.');
+      Alert.alert('Online payment isn’t available yet', 'Please choose Cash on delivery or Fengle credits.');
       return false;
     }
     return new Promise<boolean>((resolve) => {

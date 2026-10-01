@@ -12,7 +12,7 @@ const TERMS_TEXT = `Welcome to Fengle. Before you place your first order, please
 
 1. Ordering. Prices, delivery fees and taxes are shown before you pay. Placing an order is an offer to buy, which the kitchen may decline if an item becomes unavailable.
 
-2. Payment. UPI, card and cash on delivery are accepted where shown. Platter credits, once used, are not refundable to a bank account.
+2. Payment. UPI, card and cash on delivery are accepted where shown. Fengle credits, once used, are not refundable to a bank account.
 
 3. Cancellations & refunds. Orders can be cancelled free of charge only within the short window shown after placing, before the kitchen accepts. Eligible refunds are credited to your Fengle wallet.
 

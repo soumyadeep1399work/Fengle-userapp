@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Constants from 'expo-constants';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
@@ -14,6 +15,8 @@ import BottomNavBar from '../components/BottomNavBar';
 import { NavAccountIcon } from '../components/Icons';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Account'>;
+
+const ACCOUNT_DELETION_URL = 'https://fengle.in/data-deletion.html';
 
 export default function AccountScreen({ navigation }: Props) {
   const { addresses } = useAddresses();
@@ -36,7 +39,7 @@ export default function AccountScreen({ navigation }: Props) {
     if (r.label === 'Saved addresses') {
       return { ...r, sub: addresses.length ? addresses.map((a) => a.label).join(', ') : 'None yet' };
     }
-    if (r.label === 'Platter credits' && profile) {
+    if (r.label === 'Fengle credits' && profile) {
       return { ...r, sub: `₹${profile.walletBalance.toFixed(2)} available` };
     }
     if (r.label === 'Favourites') {
@@ -93,7 +96,11 @@ export default function AccountScreen({ navigation }: Props) {
         >
           <Text style={styles.logoutLabel}>Log out</Text>
         </Pressable>
-        <Text style={styles.version}>Platter · v0.1 placeholder build</Text>
+        {/* Google Play requires a way to request account deletion from inside the app. */}
+        <Pressable onPress={() => Linking.openURL(ACCOUNT_DELETION_URL).catch(() => {})} style={styles.deleteBtn}>
+          <Text style={styles.deleteLabel}>Delete my account</Text>
+        </Pressable>
+        <Text style={styles.version}>Fengle · v{Constants.expoConfig?.version ?? '1.0.0'}</Text>
       </ScrollView>
       <BottomNavBar active="profile" />
     </SafeAreaView>
@@ -119,5 +126,7 @@ const styles = StyleSheet.create({
   chevron: { fontSize: 17, color: '#B9ABB1' },
   logoutBtn: { marginTop: 20, height: 48, borderRadius: radii.md, borderWidth: 1.5, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   logoutLabel: { fontSize: 14, fontFamily: fonts.bodyBold, color: colors.ink },
+  deleteBtn: { marginTop: 14, alignSelf: 'center', paddingVertical: 6, paddingHorizontal: 12 },
+  deleteLabel: { fontSize: 12.5, fontFamily: fonts.bodyBold, color: colors.muted, textDecorationLine: 'underline' },
   version: { marginTop: 14, textAlign: 'center', fontSize: 11, color: colors.faint },
 });

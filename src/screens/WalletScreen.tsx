@@ -54,7 +54,7 @@ export default function WalletScreen({}: Props) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
       >
         <View style={styles.balanceCard}>
-          <Text style={styles.balanceEyebrow}>Platter credits</Text>
+          <Text style={styles.balanceEyebrow}>Fengle credits</Text>
           <Text style={styles.balanceValue}>{balance == null ? '—' : `₹${balance.toFixed(2)}`}</Text>
           <Text style={styles.balanceNote}>Use them as a payment option at checkout. Credits come from refunds and goodwill — there&apos;s nothing to top up.</Text>
         </View>

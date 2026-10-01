@@ -5,7 +5,7 @@ export interface PaymentMethodOption {
   id: PaymentMethod;
   label: string;
   enabled: boolean;
-  /** Platter credits balance; only on the wallet method. */
+  /** Fengle credits balance; only on the wallet method. */
   balance?: number;
 }
 
