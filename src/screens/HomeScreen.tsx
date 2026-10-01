@@ -1,17 +1,21 @@
-import React from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, fonts, radii, spacing } from '../theme';
-import { CATEGORIES, getItem } from '../data/mock';
+import { useCatalog } from '../context/CatalogContext';
+import { useFavorites } from '../context/FavoritesContext';
 import { useCart } from '../context/CartContext';
 import { usePreferences } from '../context/PreferencesContext';
 import { useAddresses } from '../context/AddressContext';
-import { PinIcon, SearchIcon, HeartIcon, ClubbingIcon, StarIcon } from '../components/Icons';
+import { initialsOf, useProfile } from '../context/ProfileContext';
+import { PinIcon, SearchIcon, HeartIcon, ClubbingIcon, StarIcon, NavAccountIcon } from '../components/Icons';
 import BottomNavBar, { BOTTOM_NAV_BASE_HEIGHT } from '../components/BottomNavBar';
 import FloatingCartBar from '../components/FloatingCartBar';
+import BrandFooter from '../components/BrandFooter';
+import { imageSource } from '../utils/images';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
@@ -22,38 +26,72 @@ const CHIP_PALETTE = [
   { bg: '#E7F5EF', fg: '#1F7A5C' },
 ];
 
-const WIKI = 'https://commons.wikimedia.org/wiki/Special:FilePath/';
-const POPULAR = [
-  { id: 'n5', badge: 'Bestseller', img: WIKI + 'Paneer_Butter_Masala.jpg' },
-  { id: 'br1', badge: 'Popular', img: WIKI + 'Hyderabadi_Chicken_Biryani.jpg' },
-  { id: 'b2', badge: 'Chef’s pick', img: WIKI + 'Cooked_shorshe_illish.jpg' },
-];
+function greeting(): string {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
 
 export default function HomeScreen({ navigation }: Props) {
   const { itemCount, subtotal, requestAdd } = useCart();
   const { vegOnly, toggleVeg } = usePreferences();
-  const { selectedAddress } = useAddresses();
+  const { selectedAddress, addresses, loaded, loadFailed, refreshAddresses } = useAddresses();
+  const { profile } = useProfile();
+  const { isFavorite, toggleFavorite } = useFavorites();
   const insets = useSafeAreaInsets();
-  const popular = POPULAR.map((p) => ({ ...p, item: getItem(p.id) })).filter((p) => !vegOnly || p.item.veg);
+
+  const noAddress = loaded && addresses.length === 0;
+  const firstName = profile?.name?.trim().split(/\s+/)[0];
+
+  // A brand-new account has no address, and the catalog is location-based, so
+  // ask for one right away (once per session; the card below covers a dismissal).
+  const promptedRef = useRef(false);
+  useEffect(() => {
+    if (noAddress && !promptedRef.current) {
+      promptedRef.current = true;
+      navigation.navigate('AddAddress', { firstTime: true });
+    }
+  }, [noAddress, navigation]);
+
+  function handleDeliverToPress() {
+    if (loadFailed) refreshAddresses();
+    else if (noAddress) navigation.navigate('AddAddress', { firstTime: true });
+    else navigation.navigate('Addresses');
+  }
+
+  const deliverLabel = selectedAddress ? `Deliver to · ${selectedAddress.label}` : 'Deliver to';
+  const deliverValue = selectedAddress
+    ? selectedAddress.area
+    : loadFailed
+      ? 'Couldn’t load · tap to retry'
+      : noAddress
+        ? 'Add delivery address'
+        : 'Loading…';
+  const { categories, categoriesStatus, reloadCategories, popularPicks } = useCatalog();
+  const popular = popularPicks.filter((p) => !vegOnly || p.item.veg);
+  const firstCategoryId = categories[0]?.id;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <Pressable onPress={() => navigation.navigate('Addresses')} style={styles.deliverTo}>
+          <Pressable onPress={handleDeliverToPress} style={styles.deliverTo}>
             <View style={styles.pinCircle}>
               <PinIcon />
             </View>
             <View style={{ minWidth: 0 }}>
-              <Text style={styles.deliverLabel} numberOfLines={1}>Deliver to · {selectedAddress.label}</Text>
+              <Text style={styles.deliverLabel} numberOfLines={1}>{deliverLabel}</Text>
               <View style={styles.deliverValueRow}>
-                <Text style={styles.deliverValue} numberOfLines={1}>{selectedAddress.area}</Text>
+                <Text style={styles.deliverValue} numberOfLines={1}>{deliverValue}</Text>
                 <Text style={styles.chevronDown}>⌄</Text>
               </View>
             </View>
           </Pressable>
           <Pressable onPress={() => navigation.navigate('Account')} style={styles.avatar}>
-            <Text style={styles.avatarLabel}>AB</Text>
+            {profile?.name ? (
+              <Text style={styles.avatarLabel}>{initialsOf(profile.name)}</Text>
+            ) : (
+              <NavAccountIcon size={18} color={colors.surfaceCream2} />
+            )}
           </Pressable>
         </View>
 
@@ -69,13 +107,23 @@ export default function HomeScreen({ navigation }: Props) {
         </View>
 
         <View style={styles.greetWrap}>
-          <Text style={styles.greetSmall}>Good evening, Ananya</Text>
+          <Text style={styles.greetSmall}>{greeting()}{firstName ? `, ${firstName}` : ''}</Text>
           <Text style={styles.greetBig}>What are you craving?</Text>
         </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} style={{ flex: 1 }}>
-        <Pressable onPress={() => navigation.navigate('Category', { categoryId: 'bengali' })} style={styles.banner}>
+        {noAddress && (
+          <Pressable onPress={() => navigation.navigate('AddAddress', { firstTime: true })} style={styles.noAddrCard}>
+            <Text style={styles.noAddrTitle}>Add your delivery address</Text>
+            <Text style={styles.noAddrBody}>We’ll show the kitchens that can reach you.</Text>
+          </Pressable>
+        )}
+
+        <Pressable
+          onPress={() => firstCategoryId && navigation.navigate('Category', { categoryId: firstCategoryId })}
+          style={styles.banner}
+        >
           <LinearGradient colors={['#6423C9', '#200A4D']} style={StyleSheet.absoluteFill} />
           <View style={styles.bannerRing} />
           <Text style={styles.bannerTitle}>One craving.{'\n'}One kitchen.</Text>
@@ -91,59 +139,87 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         </Pressable>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
-          {CATEGORIES.map((c, i) => {
-            const p = CHIP_PALETTE[i % 4];
-            return (
-              <Pressable key={c.id} onPress={() => navigation.navigate('Category', { categoryId: c.id })} style={styles.chipItem}>
-                <View style={[styles.chipCircle, { backgroundColor: p.bg }]}>
-                  <Text style={[styles.chipInitial, { color: p.fg }]}>{c.name[0]}</Text>
-                </View>
-                <Text style={styles.chipLabel} numberOfLines={1}>{c.name}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-
-        <View style={styles.sectionHeadRow}>
-          <Text style={styles.sectionHead}>Popular picks</Text>
-          <Pressable onPress={() => navigation.navigate('Category', { categoryId: 'bengali' })}>
-            <Text style={styles.viewAll}>View all</Text>
+        {categoriesStatus === 'loading' && categories.length === 0 && (
+          <ActivityIndicator style={styles.catalogLoader} color={colors.primary} />
+        )}
+        {categoriesStatus === 'error' && categories.length === 0 && (
+          <Pressable onPress={reloadCategories} style={styles.catalogMessage}>
+            <Text style={styles.catalogMessageTitle}>Couldn’t load the menu</Text>
+            <Text style={styles.catalogMessageBody}>Check your connection and tap to try again.</Text>
           </Pressable>
-        </View>
+        )}
+        {categoriesStatus === 'ready' && categories.length === 0 && (
+          <View style={styles.catalogMessage}>
+            <Text style={styles.catalogMessageTitle}>No kitchens available yet</Text>
+            <Text style={styles.catalogMessageBody}>Please check back soon.</Text>
+          </View>
+        )}
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.picksScroll}>
-          {popular.map((p) => {
-            const item = p.item;
-            return (
-              <View key={p.id} style={styles.pickCard}>
-                <View style={styles.pickImageWrap}>
-                  <Image source={{ uri: p.img }} style={StyleSheet.absoluteFill as any} />
-                  <View style={styles.pickBadge}>
-                    <Text style={styles.pickBadgeLabel}>{p.badge}</Text>
+        {categories.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
+            {categories.map((c, i) => {
+              const p = CHIP_PALETTE[i % 4];
+              return (
+                <Pressable key={c.id} onPress={() => navigation.navigate('Category', { categoryId: c.id })} style={styles.chipItem}>
+                  <View style={[styles.chipCircle, { backgroundColor: p.bg }]}>
+                    <Text style={[styles.chipInitial, { color: p.fg }]}>{c.name[0]}</Text>
                   </View>
-                  <View style={styles.pickHeart}>
-                    <HeartIcon />
+                  <Text style={styles.chipLabel} numberOfLines={1}>{c.name}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
+
+        {popular.length > 0 && (
+          <>
+            <View style={styles.sectionHeadRow}>
+              <Text style={styles.sectionHead}>Popular picks</Text>
+              <Pressable onPress={() => firstCategoryId && navigation.navigate('Category', { categoryId: firstCategoryId })}>
+                <Text style={styles.viewAll}>View all</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.picksScroll}>
+              {popular.map((p) => {
+                const item = p.item;
+                return (
+                  <View key={item.id} style={styles.pickCard}>
+                    <View style={styles.pickImageWrap}>
+                      {item.imageUrl ? (
+                        <Image source={imageSource(item.imageUrl, 500)} style={StyleSheet.absoluteFill as any} />
+                      ) : (
+                        <LinearGradient colors={['#EEE4FA', '#D2BEEF']} style={StyleSheet.absoluteFill} />
+                      )}
+                      <View style={styles.pickBadge}>
+                        <Text style={styles.pickBadgeLabel}>{p.categoryName}</Text>
+                      </View>
+                      <Pressable onPress={() => toggleFavorite(item)} hitSlop={8} style={styles.pickHeart}>
+                        <HeartIcon filled={isFavorite(item.id)} color={isFavorite(item.id) ? colors.conflictRed : colors.primaryMid} />
+                      </Pressable>
+                    </View>
+                    <View style={styles.pickInfo}>
+                      <Text style={styles.pickName} numberOfLines={1}>{item.name}</Text>
+                      <Text style={styles.pickDesc} numberOfLines={1}>{item.desc}</Text>
+                      {item.avgRating != null && (
+                        <View style={styles.pickRatingRow}>
+                          <StarIcon size={11} filled color={colors.gold} />
+                          <Text style={styles.pickRatingText}>{item.avgRating.toFixed(1)} ({item.ratingCount})</Text>
+                        </View>
+                      )}
+                      <View style={styles.pickBottomRow}>
+                        <Text style={styles.pickPrice}>₹{item.price}</Text>
+                        <Pressable onPress={() => requestAdd(item)} style={styles.pickAddBtn}>
+                          <Text style={styles.pickAddLabel}>+</Text>
+                        </Pressable>
+                      </View>
+                    </View>
                   </View>
-                </View>
-                <View style={styles.pickInfo}>
-                  <Text style={styles.pickName} numberOfLines={1}>{item.name}</Text>
-                  <Text style={styles.pickDesc} numberOfLines={1}>{item.desc}</Text>
-                  <View style={styles.pickRatingRow}>
-                    <StarIcon size={11} filled color={colors.gold} />
-                    <Text style={styles.pickRatingText}>{item.avgRating.toFixed(1)} ({item.ratingCount})</Text>
-                  </View>
-                  <View style={styles.pickBottomRow}>
-                    <Text style={styles.pickPrice}>₹{item.price}</Text>
-                    <Pressable onPress={() => requestAdd(item)} style={styles.pickAddBtn}>
-                      <Text style={styles.pickAddLabel}>+</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              </View>
-            );
-          })}
-        </ScrollView>
+                );
+              })}
+            </ScrollView>
+          </>
+        )}
 
         <Pressable style={styles.clubBanner}>
           <View style={{ flex: 1, minWidth: 0 }}>
@@ -158,6 +234,7 @@ export default function HomeScreen({ navigation }: Props) {
           </View>
         </Pressable>
 
+        <BrandFooter />
       </ScrollView>
 
       <FloatingCartBar itemCount={itemCount} subtotal={subtotal} bottom={BOTTOM_NAV_BASE_HEIGHT + insets.bottom + 16} />
@@ -190,7 +267,10 @@ const styles = StyleSheet.create({
   greetWrap: { marginTop: 16 },
   greetSmall: { fontSize: 12.5, color: colors.mutedLight },
   greetBig: { marginTop: 2, fontFamily: fonts.heading, fontSize: 24, color: colors.ink, letterSpacing: -0.8 },
-  scroll: { paddingHorizontal: 20, paddingBottom: 96 },
+  scroll: { paddingHorizontal: 20 },
+  noAddrCard: { marginBottom: 16, padding: 16, borderRadius: 16, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.primaryMid, backgroundColor: colors.primaryTint },
+  noAddrTitle: { fontSize: 14.5, fontFamily: fonts.bodyExtraBold, color: colors.primaryMid },
+  noAddrBody: { marginTop: 3, fontSize: 12.5, color: colors.bodyMuted },
   banner: { borderRadius: 20, padding: 22, paddingRight: 20, overflow: 'hidden', position: 'relative' },
   bannerRing: { position: 'absolute', right: -30, top: -30, width: 150, height: 150, borderRadius: 75, borderWidth: 2, borderColor: 'rgba(255,255,255,0.15)' },
   bannerTitle: { fontFamily: fonts.heading, fontSize: 22, lineHeight: 26, color: '#FFF', letterSpacing: -0.5 },
@@ -199,6 +279,10 @@ const styles = StyleSheet.create({
   bannerCtaLabel: { fontSize: 12.5, fontFamily: fonts.bodyExtraBold, color: colors.ink },
   bannerDots: { marginTop: 14, flexDirection: 'row', gap: 5 },
   bannerDot: { width: 4, height: 4, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.4)' },
+  catalogLoader: { marginTop: 24 },
+  catalogMessage: { marginTop: 18, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.borderAlt, alignItems: 'center' },
+  catalogMessageTitle: { fontSize: 14, fontFamily: fonts.bodyExtraBold, color: colors.ink },
+  catalogMessageBody: { marginTop: 3, fontSize: 12.5, color: colors.bodyMuted, textAlign: 'center' },
   chipsScroll: { marginTop: 18 },
   chipItem: { alignItems: 'center', gap: 6, width: 58, marginRight: 16 },
   chipCircle: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },

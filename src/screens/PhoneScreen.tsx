@@ -5,12 +5,28 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, fonts, spacing } from '../theme';
 import PrimaryButton from '../components/PrimaryButton';
+import { requestOtp } from '../api/auth';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Phone'>;
 
 export default function PhoneScreen({ navigation }: Props) {
   const [phone, setPhone] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
   const valid = phone.length === 10;
+
+  async function handleSend() {
+    setSending(true);
+    setError('');
+    try {
+      await requestOtp(phone);
+      navigation.navigate('Otp', { phone });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -36,8 +52,10 @@ export default function PhoneScreen({ navigation }: Props) {
           />
         </View>
 
+        {!!error && <Text style={styles.error}>{error}</Text>}
+
         <View style={styles.flex} />
-        <PrimaryButton label="Send OTP" disabled={!valid} onPress={() => navigation.navigate('Otp', { phone })} />
+        <PrimaryButton label={sending ? 'Sending…' : 'Send OTP'} disabled={!valid || sending} onPress={handleSend} />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -55,4 +73,5 @@ const styles = StyleSheet.create({
   prefix: { fontSize: 16, fontFamily: fonts.bodyBold, color: colors.bodyMuted },
   divider: { width: 1, height: 24, backgroundColor: colors.borderAlt },
   input: { flex: 1, fontSize: 16, fontFamily: fonts.bodyBold, letterSpacing: 0.5, color: colors.ink },
+  error: { marginTop: 12, fontSize: 12.5, lineHeight: 18, fontFamily: fonts.bodyBold, color: colors.conflictRed },
 });

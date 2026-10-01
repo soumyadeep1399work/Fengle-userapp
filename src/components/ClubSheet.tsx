@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts, radii } from '../theme';
 import { useCart } from '../context/CartContext';
-import { getCategory } from '../data/mock';
+import { getCategory } from '../data/catalogStore';
 import BottomSheet from './BottomSheet';
 import { CheckIcon } from './Icons';
 

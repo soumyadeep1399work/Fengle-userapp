@@ -25,9 +25,9 @@ export function SearchIcon({ size = 15, color = '#B4A7AC', strokeWidth = 2.2 }: 
   );
 }
 
-export function HeartIcon({ size = 12, color = '#6423C9', strokeWidth = 2 }: IconProps) {
+export function HeartIcon({ size = 12, color = '#6423C9', strokeWidth = 2, filled = false }: IconProps & { filled?: boolean }) {
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth}>
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? color : 'none'} stroke={color} strokeWidth={strokeWidth}>
       <Path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 10-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 000-7.8z" />
     </Svg>
   );

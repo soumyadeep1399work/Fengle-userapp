@@ -4,8 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, fonts, radii } from '../theme';
-import { useOrders } from '../context/OrdersContext';
-import { CANCEL_WINDOW_MS } from '../data/mock';
+import { COD_PAY_LABEL, displayOrderId, useOrders } from '../context/OrdersContext';
+import { formatMoney } from '../utils/money';
+import { serverNow } from '../api/client';
 import { CheckIcon } from '../components/Icons';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderConfirmed'>;
@@ -15,18 +16,19 @@ export default function OrderConfirmedScreen({ navigation, route }: Props) {
   const { getOrder, cancelOrder } = useOrders();
   const order = getOrder(orderId);
 
-  const [now, setNow] = useState(Date.now());
-  const canStillCancel = !!order && !order.cancelled && now - order.placedAt < CANCEL_WINDOW_MS;
+  // The deadline is server time, so count down against the server's clock.
+  const [now, setNow] = useState(serverNow());
+  const canStillCancel = !!order && !order.cancelled && order.cancellableUntil != null && now < order.cancellableUntil;
 
   useEffect(() => {
     if (!canStillCancel) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
+    const id = setInterval(() => setNow(serverNow()), 1000);
     return () => clearInterval(id);
   }, [canStillCancel]);
 
   if (!order) return null;
 
-  const secondsLeft = Math.max(0, Math.ceil((CANCEL_WINDOW_MS - (now - order.placedAt)) / 1000));
+  const secondsLeft = order.cancellableUntil ? Math.max(0, Math.ceil((order.cancellableUntil - now) / 1000)) : 0;
 
   function handleCancel() {
     Alert.alert('Cancel order', 'This order will be cancelled and any payment refunded to your original method.', [
@@ -35,8 +37,10 @@ export default function OrderConfirmedScreen({ navigation, route }: Props) {
         text: 'Cancel order',
         style: 'destructive',
         onPress: () => {
-          cancelOrder(orderId);
-          navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+          // Leave only once the cancellation went through (the server can refuse it).
+          cancelOrder(orderId).then((ok) => {
+            if (ok) navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+          });
         },
       },
     ]);
@@ -52,9 +56,9 @@ export default function OrderConfirmedScreen({ navigation, route }: Props) {
         <Text style={styles.subtitle}>Your {order.catName} order is on the fire. We&apos;ll ping you at every step.</Text>
 
         <View style={styles.card}>
-          <Row label="Order" value={`#${order.id}`} />
-          <Row label="Paid" value={`₹${order.total} · ${order.payLabel}`} />
-          <Row label="Usually takes" value={order.prep} />
+          <Row label="Order" value={`#${displayOrderId(order.id)}`} />
+          <Row label={order.payLabel === COD_PAY_LABEL ? 'To pay' : 'Paid'} value={`${formatMoney(order.total)} · ${order.payLabel}`} />
+          {!!order.prep && <Row label="Usually takes" value={order.prep} />}
         </View>
 
         <Pressable onPress={() => navigation.replace('OrderStatus', { orderId })} style={styles.trackBtn}>

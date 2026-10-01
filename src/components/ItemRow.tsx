@@ -1,10 +1,12 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Item } from '../types';
 import { colors, fonts, radii, spacing } from '../theme';
 import VegDot from './VegDot';
-import { StarIcon } from './Icons';
+import { HeartIcon, StarIcon } from './Icons';
+import { useFavorites } from '../context/FavoritesContext';
+import { imageSource } from '../utils/images';
 
 interface Props {
   item: Item;
@@ -15,24 +17,36 @@ interface Props {
 }
 
 export default function ItemRow({ item, qty, onAdd, onIncrement, onDecrement }: Props) {
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const favorite = isFavorite(item.id);
+  const [photoFailed, setPhotoFailed] = useState(false);
   return (
     <View style={styles.row}>
       <View style={styles.info}>
         <View style={styles.titleLine}>
           <VegDot veg={item.veg} />
           <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+          <Pressable onPress={() => toggleFavorite(item)} hitSlop={10} style={styles.heart}>
+            <HeartIcon size={16} filled={favorite} color={favorite ? colors.conflictRed : colors.faint} />
+          </Pressable>
         </View>
         <Text style={styles.desc}>{item.desc}</Text>
-        <View style={styles.ratingRow}>
-          <StarIcon size={12} filled color={colors.gold} />
-          <Text style={styles.ratingText}>{item.avgRating.toFixed(1)} ({item.ratingCount})</Text>
-        </View>
+        {item.avgRating != null && (
+          <View style={styles.ratingRow}>
+            <StarIcon size={12} filled color={colors.gold} />
+            <Text style={styles.ratingText}>{item.avgRating.toFixed(1)} ({item.ratingCount})</Text>
+          </View>
+        )}
         <Text style={styles.price}>₹{item.price}</Text>
       </View>
       <View style={styles.photoCol}>
-        <LinearGradient colors={['#EEE4FA', '#D2BEEF']} style={styles.photo}>
-          <View style={styles.photoDot} />
-        </LinearGradient>
+        {item.imageUrl && !photoFailed ? (
+          <Image source={imageSource(item.imageUrl, 300)} style={styles.photoImage} onError={() => setPhotoFailed(true)} />
+        ) : (
+          <LinearGradient colors={['#EEE4FA', '#D2BEEF']} style={styles.photo}>
+            <View style={styles.photoDot} />
+          </LinearGradient>
+        )}
         {qty === 0 ? (
           <Pressable onPress={onAdd} style={styles.addBtn}>
             <Text style={styles.addLabel}>ADD</Text>
@@ -63,6 +77,7 @@ const styles = StyleSheet.create({
   },
   info: { flex: 1, minWidth: 0 },
   titleLine: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  heart: { marginLeft: 'auto', paddingLeft: 6 },
   name: { fontFamily: fonts.bodyBold, fontSize: 15.5, color: colors.ink, letterSpacing: -0.2, flexShrink: 1 },
   desc: { marginTop: 4, fontFamily: fonts.body, fontSize: 12.5, color: colors.bodyMuted, lineHeight: 17 },
   ratingRow: { marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -79,6 +94,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(37,28,33,0.2)',
     borderStyle: 'dashed',
   },
+  photoImage: { width: 88, height: 88, borderRadius: radii.md, backgroundColor: '#EEE4FA' },
   photoDot: {
     width: 38,
     height: 38,

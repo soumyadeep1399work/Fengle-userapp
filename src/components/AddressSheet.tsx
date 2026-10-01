@@ -29,7 +29,6 @@ export default function AddressSheet({ visible, addresses, selectedId, onSelect,
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>{a.label}</Text>
               <Text style={styles.detail}>{a.detail}</Text>
-              <Text style={[styles.feeNote, { color: a.feeIsFree ? colors.veg : colors.addressMuted }]}>{a.feeNote}</Text>
             </View>
           </Pressable>
         );
@@ -54,7 +53,6 @@ const styles = StyleSheet.create({
   radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary },
   label: { fontSize: 14, fontFamily: fonts.bodyExtraBold, color: colors.ink },
   detail: { marginTop: 2, fontSize: 12, color: colors.bodyMuted },
-  feeNote: { marginTop: 3, fontSize: 11, fontFamily: fonts.bodyBold },
   addNewRow: { height: 44, borderRadius: radii.md, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.border, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
   addNewLabel: { fontSize: 13, fontFamily: fonts.bodyBold, color: colors.primaryMid },
 });

@@ -1,37 +1,74 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, fonts, radii } from '../theme';
 import { PROFILE_ROWS } from '../data/mock';
 import { useAddresses } from '../context/AddressContext';
 import { useAuth } from '../context/AuthContext';
+import { useFavorites } from '../context/FavoritesContext';
+import { initialsOf, useProfile } from '../context/ProfileContext';
 import BottomNavBar from '../components/BottomNavBar';
+import { NavAccountIcon } from '../components/Icons';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Account'>;
 
 export default function AccountScreen({ navigation }: Props) {
   const { addresses } = useAddresses();
-  const { logout } = useAuth();
-  const rows = PROFILE_ROWS.map((r) =>
-    r.label === 'Saved addresses' ? { ...r, sub: addresses.map((a) => a.label).join(', ') } : r
+  const { logout, user } = useAuth();
+  const { profile, refreshProfile } = useProfile();
+  const { favorites } = useFavorites();
+
+  // Credits change when orders are paid or refunded, so re-read the profile when this tab opens.
+  useFocusEffect(
+    useCallback(() => {
+      refreshProfile();
+    }, [refreshProfile])
   );
+
+  const name = profile?.name ?? user?.name ?? null;
+  const phone = profile?.phone ?? user?.phone ?? '';
+  const phoneLabel = phone.length === 10 ? `+91 ${phone.slice(0, 5)} ${phone.slice(5)}` : phone;
+
+  const rows = PROFILE_ROWS.map((r) => {
+    if (r.label === 'Saved addresses') {
+      return { ...r, sub: addresses.length ? addresses.map((a) => a.label).join(', ') : 'None yet' };
+    }
+    if (r.label === 'Platter credits' && profile) {
+      return { ...r, sub: `₹${profile.walletBalance.toFixed(2)} available` };
+    }
+    if (r.label === 'Favourites') {
+      return { ...r, sub: favorites.length ? `${favorites.length} dish${favorites.length === 1 ? '' : 'es'}` : 'Dishes you’ve hearted' };
+    }
+    if (r.label === 'Notifications' && profile) {
+      return { ...r, sub: profile.notificationPrefs.orderUpdates ? 'Order updates on' : 'Order updates off' };
+    }
+    return r;
+  });
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Text style={styles.title}>Account</Text>
       <ScrollView contentContainerStyle={styles.scroll} style={{ flex: 1 }}>
-        <View style={styles.profileRow}>
-          <View style={styles.avatar}><Text style={styles.avatarLabel}>AB</Text></View>
-          <View>
-            <Text style={styles.name}>Ananya Bose</Text>
+        <Pressable onPress={() => navigation.navigate('EditProfile')} style={styles.profileRow}>
+          <View style={styles.avatar}>
+            {name ? (
+              <Text style={styles.avatarLabel}>{initialsOf(name)}</Text>
+            ) : (
+              <NavAccountIcon size={24} color={colors.surfaceCream2} />
+            )}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.name}>{name ?? 'Add your name'}</Text>
             <View style={styles.phoneRow}>
-              <Text style={styles.phone}>+91 98301 44821</Text>
+              <Text style={styles.phone}>{phoneLabel}</Text>
               <View style={styles.verifiedBadge}><Text style={styles.verifiedLabel}>VERIFIED</Text></View>
             </View>
           </View>
-        </View>
+          <Text style={styles.editLabel}>Edit</Text>
+        </Pressable>
 
         {rows.map((r) => (
           <Pressable
@@ -71,6 +108,7 @@ const styles = StyleSheet.create({
   avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   avatarLabel: { fontSize: 18, fontFamily: fonts.bodyExtraBold, color: colors.surfaceCream2 },
   name: { fontSize: 15.5, fontFamily: fonts.bodyExtraBold, color: colors.ink },
+  editLabel: { fontSize: 12.5, fontFamily: fonts.bodyBold, color: colors.primaryMid },
   phoneRow: { marginTop: 2, flexDirection: 'row', alignItems: 'center', gap: 6 },
   phone: { fontSize: 12, color: colors.mutedLight },
   verifiedBadge: { backgroundColor: colors.vegTintBg, borderRadius: 99, paddingHorizontal: 7, paddingVertical: 2 },

@@ -21,6 +21,11 @@ import WalletScreen from '../screens/WalletScreen';
 import AccountScreen from '../screens/AccountScreen';
 import AddressesScreen from '../screens/AddressesScreen';
 import AddAddressScreen from '../screens/AddAddressScreen';
+import EditProfileScreen from '../screens/EditProfileScreen';
+import MapPickerScreen from '../screens/MapPickerScreen';
+import FavoritesScreen from '../screens/FavoritesScreen';
+import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
+import CouponsScreen from '../screens/CouponsScreen';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -39,7 +44,12 @@ export type RootStackParamList = {
   Wallet: undefined;
   Account: undefined;
   Addresses: undefined;
-  AddAddress: { editId?: string } | undefined;
+  AddAddress: { editId?: string; firstTime?: boolean; picked?: { lat: number; lng: number; address: string } } | undefined;
+  MapPicker: { lat: number; lng: number } | undefined;
+  EditProfile: undefined;
+  Favorites: undefined;
+  NotificationSettings: undefined;
+  Coupons: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -68,6 +78,11 @@ export default function RootNavigator() {
       <Stack.Screen name="Account" component={AccountScreen} />
       <Stack.Screen name="Addresses" component={AddressesScreen} />
       <Stack.Screen name="AddAddress" component={AddAddressScreen} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+      <Stack.Screen name="MapPicker" component={MapPickerScreen} />
+      <Stack.Screen name="Favorites" component={FavoritesScreen} />
+      <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
+      <Stack.Screen name="Coupons" component={CouponsScreen} />
     </Stack.Navigator>
   );
 }

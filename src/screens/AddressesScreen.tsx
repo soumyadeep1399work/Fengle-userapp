@@ -19,7 +19,14 @@ export default function AddressesScreen({ navigation }: Props) {
     }
     Alert.alert('Delete address', `Remove "${label}" from your saved addresses?`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteAddress(id) },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () =>
+          deleteAddress(id).catch((e) =>
+            Alert.alert('Couldn’t delete address', e instanceof Error ? e.message : 'Please try again.')
+          ),
+      },
     ]);
   }
 

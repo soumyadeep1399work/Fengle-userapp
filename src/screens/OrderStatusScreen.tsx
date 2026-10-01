@@ -1,50 +1,88 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, fonts, radii } from '../theme';
-import { useOrders, summaryLinesFor } from '../context/OrdersContext';
-import { CANCEL_WINDOW_MS } from '../data/mock';
+import { displayOrderId, useOrders, summaryLinesFor } from '../context/OrdersContext';
+import { fetchOrderStatus } from '../api/orders';
+import { serverNow } from '../api/client';
 import { BackChevronIcon, BellIcon, PhoneIcon, StarIcon } from '../components/Icons';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderStatus'>;
 
-const STEP_LABELS: [string, string, string][] = [
-  ['Order placed', 'We have your order', '8:04 PM'],
-  ['Accepted', 'Your food is being cooked.', '8:09 PM'],
-  ['Picked up', 'Out of the kitchen, on a bike.', '8:26 PM'],
-  ['On the way', 'Close now — keep your phone handy.', '8:31 PM'],
-  ['Delivered', 'Hope it was good.', '8:49 PM'],
+const STEP_LABELS: [string, string][] = [
+  ['Order placed', 'We have your order'],
+  ['Accepted', 'Your food is being cooked.'],
+  ['Picked up', 'Out of the kitchen, on a bike.'],
+  ['On the way', 'Close now — keep your phone handy.'],
+  ['Delivered', 'Hope it was good.'],
 ];
 
 export default function OrderStatusScreen({ navigation, route }: Props) {
   const { orderId } = route.params;
-  const { getOrder, advanceStatus, cancelOrder, rateRider, rateRestaurant } = useOrders();
+  const { getOrder, cancelOrder, applyServerStatus, loadOrder, rateRider, rateRestaurant } = useOrders();
   const order = getOrder(orderId);
+  const finished = !!order && (order.cancelled || order.statusStep === 4);
 
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(serverNow());
   const [pendingRiderRating, setPendingRiderRating] = useState(0);
   const [pendingRiderComment, setPendingRiderComment] = useState('');
   const [pendingRestaurantRating, setPendingRestaurantRating] = useState(0);
   const [pendingRestaurantComment, setPendingRestaurantComment] = useState('');
 
-  const canStillCancel = !!order && !order.cancelled && order.statusStep === 0 && now - order.placedAt < CANCEL_WINDOW_MS;
+  // The deadline is server time; `now` follows the server's clock so a wrong phone clock can't show or hide the button.
+  const canStillCancel = !!order && !order.cancelled && order.statusStep === 0 && order.cancellableUntil != null && now < order.cancellableUntil;
 
   useEffect(() => {
     if (!canStillCancel) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
+    const id = setInterval(() => setNow(serverNow()), 1000);
     return () => clearInterval(id);
   }, [canStillCancel]);
+
+  // Open with the order's full detail (line prices, rider, ratings).
+  useEffect(() => {
+    loadOrder(orderId);
+  }, [orderId, loadOrder]);
+
+  // The order moves on the backend (kitchen accepts, rider picks up, ...), so
+  // poll its status until it's delivered or cancelled. A status change or a
+  // newly assigned rider triggers a reload of the full detail.
+  const lastStatus = useRef<string | null>(null);
+  const riderKnown = useRef(false);
+  riderKnown.current = !!order?.riderPhone;
+  useEffect(() => {
+    if (finished) return;
+    let stopped = false;
+    const poll = async () => {
+      try {
+        const s = await fetchOrderStatus(orderId);
+        if (stopped) return;
+        applyServerStatus(orderId, s);
+        const changed = lastStatus.current !== null && lastStatus.current !== s.status;
+        lastStatus.current = s.status;
+        if (changed || (s.rider_assigned && !riderKnown.current)) loadOrder(orderId);
+      } catch {
+        // Try again on the next tick.
+      }
+    };
+    poll();
+    const timer = setInterval(poll, 5000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [finished, orderId, applyServerStatus, loadOrder]);
 
   if (!order) return null;
 
   const stepIdx = order.statusStep;
-  const showEta = stepIdx >= 2 && !order.cancelled;
-  const showRider = stepIdx >= 2 && stepIdx < 4 && !order.cancelled;
+  const showEta = stepIdx >= 2 && !order.cancelled && !!order.etaLabel;
+  const showRider = stepIdx >= 2 && stepIdx < 4 && !order.cancelled && !!order.riderPhone;
+  const showDeliveryCode = stepIdx >= 2 && stepIdx < 4 && !order.cancelled && !!order.deliveryOtp;
   const showRatings = stepIdx === 4 && !order.cancelled;
   const summaryLines = summaryLinesFor(order);
-  const secondsLeft = Math.max(0, Math.ceil((CANCEL_WINDOW_MS - (now - order.placedAt)) / 1000));
+  const secondsLeft = order.cancellableUntil ? Math.max(0, Math.ceil((order.cancellableUntil - now) / 1000)) : 0;
 
   function handleCancel() {
     Alert.alert('Cancel order', 'This order will be cancelled and any payment refunded to your original method.', [
@@ -70,7 +108,7 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
       <View style={styles.header}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={8}><BackChevronIcon size={19} /></Pressable>
         <View>
-          <Text style={styles.headerTitle}>Order #{order.id}</Text>
+          <Text style={styles.headerTitle}>Order #{displayOrderId(order.id)}</Text>
           <Text style={styles.headerSub}>{order.catName} · placed {order.placedTime}</Text>
         </View>
       </View>
@@ -96,7 +134,7 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
         {showEta && (
           <View style={styles.etaCard}>
             <Text style={styles.etaEyebrow}>Estimated delivery</Text>
-            <Text style={styles.etaValue}>Arriving by 8:52 PM</Text>
+            <Text style={styles.etaValue}>{order.etaLabel}</Text>
             <Text style={styles.etaNote}>Estimated once your order was picked up. We won&apos;t keep changing it.</Text>
           </View>
         )}
@@ -117,7 +155,15 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
           </View>
         )}
 
-        {!order.cancelled && STEP_LABELS.map(([label, sub, time], i) => {
+        {showDeliveryCode && (
+          <View style={styles.otpCard}>
+            <Text style={styles.otpLabel}>Share this code at drop-off</Text>
+            <Text style={styles.otpValue}>{order.deliveryOtp}</Text>
+            <Text style={styles.otpNote}>Your delivery partner will ask for this to confirm it&apos;s your order.</Text>
+          </View>
+        )}
+
+        {!order.cancelled && STEP_LABELS.map(([label, sub], i) => {
           const done = i <= stepIdx;
           const lineDone = i < stepIdx;
           return (
@@ -133,7 +179,7 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
                   <Text style={[styles.stepLabel, { color: done ? colors.ink : colors.faint }]}>{label}</Text>
                   <Text style={styles.stepSub}>{sub}</Text>
                 </View>
-                <Text style={styles.stepTime}>{done ? time : '–'}</Text>
+                <Text style={styles.stepTime}>{done ? order.stepTimes[i] ?? '' : '–'}</Text>
               </View>
             </View>
           );
@@ -241,19 +287,12 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
           {summaryLines.map((ln) => (
             <View key={ln.id} style={styles.summaryLine}>
               <Text style={styles.summaryLineText}>{ln.qty} × {ln.name}</Text>
-              <Text style={styles.summaryLineValue}>₹{ln.line}</Text>
+              {ln.priced && <Text style={styles.summaryLineValue}>₹{ln.line}</Text>}
             </View>
           ))}
         </View>
       </ScrollView>
 
-      {!order.cancelled && stepIdx < 4 && (
-        <View style={styles.footer}>
-          <Pressable onPress={() => advanceStatus(order.id)} style={styles.advanceBtn}>
-            <Text style={styles.advanceLabel}>Demo: advance to next step</Text>
-          </Pressable>
-        </View>
-      )}
     </SafeAreaView>
   );
 }
@@ -278,6 +317,10 @@ const styles = StyleSheet.create({
   riderSub: { marginTop: 1, fontSize: 11.5, color: colors.mutedLight },
   callBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 36, paddingHorizontal: 14, borderRadius: 99, backgroundColor: colors.primary },
   callLabel: { fontSize: 12.5, fontFamily: fonts.bodyExtraBold, color: '#FFF' },
+  otpCard: { alignItems: 'center', borderRadius: radii.md, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.primary, backgroundColor: colors.primaryTint, padding: 16, marginBottom: 20 },
+  otpLabel: { fontSize: 11.5, fontFamily: fonts.bodyBold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.primaryMid },
+  otpValue: { marginTop: 6, fontFamily: fonts.heading, fontSize: 32, letterSpacing: 8, color: colors.ink },
+  otpNote: { marginTop: 6, fontSize: 11.5, lineHeight: 16, color: colors.bodyMuted, textAlign: 'center' },
   ratingCard: { marginTop: 4, marginBottom: 16, padding: 16, borderRadius: radii.md, borderWidth: 1, borderColor: colors.borderAlt, alignItems: 'center' },
   ratingTitle: { fontSize: 14.5, fontFamily: fonts.bodyExtraBold, color: colors.ink, textAlign: 'center' },
   starRow: { flexDirection: 'row', gap: 6, marginTop: 12 },

@@ -1,3 +1,4 @@
+import { imageSource } from '../utils/images';
 import React, { useState } from 'react';
 import { Image, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,7 +23,7 @@ export default function OnboardingScreen({ navigation }: Props) {
   const isLast = idx === SLIDES.length - 1;
 
   return (
-    <ImageBackground source={{ uri: slide.img }} style={styles.bg}>
+    <ImageBackground source={imageSource(slide.img, 1000)} style={styles.bg}>
       <LinearGradient
         colors={['rgba(37,28,33,0.25)', 'rgba(37,28,33,0.92)']}
         locations={[0.4, 1]}

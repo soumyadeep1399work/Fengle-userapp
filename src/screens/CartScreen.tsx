@@ -4,9 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, fonts, radii, spacing } from '../theme';
-import { getCategory, getItem, MIN_ORDER_VALUE } from '../data/mock';
+import { getCategory, getItem } from '../data/catalogStore';
+import { formatMoney } from '../utils/money';
 import { useCart } from '../context/CartContext';
-import { useOrders } from '../context/OrdersContext';
+import { findPendingRating, useOrders } from '../context/OrdersContext';
+import { OrderRecord } from '../types';
 import { BackChevronIcon, EmptyCartIcon } from '../components/Icons';
 import PrimaryButton from '../components/PrimaryButton';
 import RestaurantRatingSheet from '../components/RestaurantRatingSheet';
@@ -14,15 +16,27 @@ import RestaurantRatingSheet from '../components/RestaurantRatingSheet';
 type Props = NativeStackScreenProps<RootStackParamList, 'Cart'>;
 
 export default function CartScreen({ navigation }: Props) {
-  const { cart, incrementItem, decrementItem, subtotal, fee, tax, toPay, itemCount, alongsidePartners, nudgeAmount, canCheckout } = useCart();
-  const { pendingRestaurantRating, rateRestaurant, skipRestaurantRating } = useOrders();
-  const [showRatingGate, setShowRatingGate] = useState(false);
+  const {
+    cart, incrementItem, decrementItem, subtotal, fee, tax, toPay, itemCount, alongsidePartners,
+    nudgeAmount, minOrder, canCheckout, billReady, blockReason, quoteStatus, refreshQuote,
+  } = useCart();
+  const { refreshOrders, rateRestaurant, skipRestaurantRating } = useOrders();
+  const [gateOrder, setGateOrder] = useState<OrderRecord | null>(null);
+  const [checkingGate, setCheckingGate] = useState(false);
 
   const goBack = () => navigation.navigate(cart.cat ? 'Category' : 'Home', cart.cat ? { categoryId: cart.cat } : (undefined as any));
 
-  function handleCheckoutPress() {
-    if (pendingRestaurantRating) {
-      setShowRatingGate(true);
+  // A delivered order whose kitchen hasn't been rated (or skipped) blocks the
+  // next order, so re-read the real order state first — one may have been
+  // delivered while the user was browsing.
+  async function handleCheckoutPress() {
+    if (checkingGate) return;
+    setCheckingGate(true);
+    const fresh = await refreshOrders();
+    setCheckingGate(false);
+    const pending = findPendingRating(fresh);
+    if (pending) {
+      setGateOrder(pending);
       return;
     }
     navigation.navigate('Checkout');
@@ -107,27 +121,38 @@ export default function CartScreen({ navigation }: Props) {
               <View style={styles.nudgeBox}>
                 <View style={styles.nudgeIcon}><Text style={styles.nudgeIconLabel}>₹</Text></View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.nudgeTitle}>Just ₹{nudgeAmount} to go</Text>
-                  <Text style={styles.nudgeBody}>Orders start at ₹{MIN_ORDER_VALUE}. Add one more dish and you&apos;re set.</Text>
+                  <Text style={styles.nudgeTitle}>Just {formatMoney(nudgeAmount)} to go</Text>
+                  <Text style={styles.nudgeBody}>Orders start at {formatMoney(minOrder)}. Add one more dish and you&apos;re set.</Text>
                 </View>
+              </View>
+            )}
+
+            {!!blockReason && (
+              <View style={styles.blockBox}>
+                <Text style={styles.blockText}>{blockReason}</Text>
+                {quoteStatus === 'error' && (
+                  <Pressable onPress={refreshQuote} hitSlop={8}>
+                    <Text style={styles.blockRetry}>Try again</Text>
+                  </Pressable>
+                )}
               </View>
             )}
 
             <View style={styles.billWrap}>
               <Text style={styles.billHead}>Bill</Text>
               <View style={{ marginTop: 8, gap: 7 }}>
-                <BillRow label="Item total" value={`₹${subtotal}`} />
-                <BillRow label="Delivery fee" value={`₹${fee}`} />
-                <BillRow label="Taxes & charges" value={`₹${tax}`} />
+                <BillRow label="Item total" value={formatMoney(subtotal)} />
+                <BillRow label="Delivery fee" value={billReady && fee === 0 ? 'Free' : formatMoney(fee)} />
+                <BillRow label="Taxes & charges" value={formatMoney(tax)} />
                 <View style={styles.billDivider} />
-                <BillRow label="To pay" value={`₹${toPay}`} bold />
+                <BillRow label="To pay" value={formatMoney(toPay)} bold />
               </View>
             </View>
           </ScrollView>
 
           <View style={styles.footer}>
             <View>
-              <Text style={styles.footerTotal}>₹{toPay}</Text>
+              <Text style={styles.footerTotal}>{formatMoney(toPay)}</Text>
               <Text style={styles.footerCount}>{itemCount} item{itemCount === 1 ? '' : 's'}</Text>
             </View>
             {canCheckout ? (
@@ -136,25 +161,33 @@ export default function CartScreen({ navigation }: Props) {
               </Pressable>
             ) : (
               <View style={styles.checkoutBtnDisabled}>
-                <Text style={styles.checkoutLabelDisabled}>Add ₹{nudgeAmount} more ›</Text>
+                <Text style={styles.checkoutLabelDisabled}>
+                  {nudgeAmount > 0
+                    ? `Add ${formatMoney(nudgeAmount)} more ›`
+                    : blockReason
+                      ? 'Can’t order this'
+                      : 'Pricing…'}
+                </Text>
               </View>
             )}
           </View>
         </>
       )}
 
-      {showRatingGate && pendingRestaurantRating && (
+      {gateOrder && (
         <RestaurantRatingSheet
-          order={pendingRestaurantRating}
-          onSubmit={(stars, comment) => {
-            rateRestaurant(pendingRestaurantRating.id, stars, comment);
-            setShowRatingGate(false);
-            navigation.navigate('Checkout');
+          order={gateOrder}
+          onSubmit={async (stars, comment) => {
+            if (await rateRestaurant(gateOrder.id, stars, comment)) {
+              setGateOrder(null);
+              navigation.navigate('Checkout');
+            }
           }}
-          onSkip={() => {
-            skipRestaurantRating(pendingRestaurantRating.id);
-            setShowRatingGate(false);
-            navigation.navigate('Checkout');
+          onSkip={async () => {
+            if (await skipRestaurantRating(gateOrder.id)) {
+              setGateOrder(null);
+              navigation.navigate('Checkout');
+            }
           }}
         />
       )}
@@ -203,6 +236,9 @@ const styles = StyleSheet.create({
   alongsideChips: { flexDirection: 'row', gap: 8, marginTop: 10, flexWrap: 'wrap' },
   alongsideChip: { height: 30, paddingHorizontal: 12, borderRadius: 99, borderWidth: 1, borderColor: '#E3C4D3', alignItems: 'center', justifyContent: 'center' },
   alongsideChipLabel: { fontSize: 12, fontFamily: fonts.bodyBold, color: colors.primaryMid },
+  blockBox: { marginTop: 14, padding: 14, borderRadius: 14, backgroundColor: '#FBEDEB', borderWidth: 1, borderColor: '#F0C9C4', gap: 8 },
+  blockText: { fontSize: 13, lineHeight: 19, fontFamily: fonts.bodyBold, color: colors.conflictRed },
+  blockRetry: { fontSize: 12.5, fontFamily: fonts.bodyExtraBold, color: colors.primaryMid },
   nudgeBox: { marginTop: 14, padding: 14, borderRadius: 14, backgroundColor: colors.goldChipBg, flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   nudgeIcon: { width: 34, height: 34, borderRadius: 17, backgroundColor: '#F5DCAE', alignItems: 'center', justifyContent: 'center' },
   nudgeIconLabel: { fontSize: 15, fontFamily: fonts.bodyExtraBold, color: colors.goldChipText },

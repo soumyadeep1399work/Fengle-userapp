@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors, fonts, radii } from '../theme';
 import { useCart } from '../context/CartContext';
-import { getCategory, getItem } from '../data/mock';
+import { getCategory, getItem } from '../data/catalogStore';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import BottomSheet from './BottomSheet';
 import { ForkIcon } from './Icons';
