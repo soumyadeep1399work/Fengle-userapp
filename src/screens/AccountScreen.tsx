@@ -13,16 +13,17 @@ import { useFavorites } from '../context/FavoritesContext';
 import { initialsOf, useProfile } from '../context/ProfileContext';
 import BottomNavBar from '../components/BottomNavBar';
 import { NavAccountIcon } from '../components/Icons';
+import { usePullRefresh } from '../utils/usePullRefresh';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Account'>;
 
 const ACCOUNT_DELETION_URL = 'https://fengle.in/data-deletion.html';
 
 export default function AccountScreen({ navigation }: Props) {
-  const { addresses } = useAddresses();
+  const { addresses, refreshAddresses } = useAddresses();
   const { logout, user } = useAuth();
   const { profile, refreshProfile } = useProfile();
-  const { favorites } = useFavorites();
+  const { favorites, refreshFavorites } = useFavorites();
 
   // Credits change when orders are paid or refunded, so re-read the profile when this tab opens.
   useFocusEffect(
@@ -30,6 +31,8 @@ export default function AccountScreen({ navigation }: Props) {
       refreshProfile();
     }, [refreshProfile])
   );
+
+  const refresh = usePullRefresh(() => Promise.all([refreshProfile(), refreshAddresses(), refreshFavorites()]));
 
   const name = profile?.name ?? user?.name ?? null;
   const phone = profile?.phone ?? user?.phone ?? '';
@@ -54,7 +57,7 @@ export default function AccountScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <Text style={styles.title}>Account</Text>
-      <ScrollView contentContainerStyle={styles.scroll} style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={styles.scroll} style={{ flex: 1 }} refreshControl={refresh}>
         <Pressable onPress={() => navigation.navigate('EditProfile')} style={styles.profileRow}>
           <View style={styles.avatar}>
             {name ? (
@@ -90,7 +93,7 @@ export default function AccountScreen({ navigation }: Props) {
         <Pressable
           onPress={() => {
             logout();
-            navigation.reset({ index: 0, routes: [{ name: 'Splash' }] });
+            navigation.reset({ index: 0, routes: [{ name: 'Onboarding' }] });
           }}
           style={styles.logoutBtn}
         >

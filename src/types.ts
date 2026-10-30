@@ -23,10 +23,19 @@ export interface Item {
   id: string;
   categoryId: CategoryId;
   name: string;
+  /** The normal price. */
   price: number;
+  /** The discounted price while an offer is in force, otherwise null. */
+  offerPrice: number | null;
+  /** When the running offer ends (ISO); null = no end date or no offer. */
+  offerEndsAt: string | null;
+  /** What the customer is charged right now: the offer price when there is one, else the normal price. */
+  effectivePrice: number;
   veg: boolean;
   desc: string;
   imageUrl: string | null;
+  /** How much food one unit is, e.g. "3 pc" or "500 gm"; null when the kitchen hasn't set it. */
+  portion: string | null;
   /** null until at least one delivered order containing it has been rated. */
   avgRating: number | null;
   ratingCount: number;
@@ -56,8 +65,12 @@ export interface OrderLine {
   id: string;
   name: string;
   qty: number;
-  /** Price at the time of ordering; null when only the order list (no prices) has been loaded. */
+  /** Portion at the time of ordering ("3 pc"); null when not set. */
+  portion: string | null;
+  /** Price charged per unit at the time of ordering; null when only the order list (no prices) has been loaded. */
   unitPrice: number | null;
+  /** The normal price that day when an offer was running (so it can be shown struck through); otherwise null. */
+  listPrice: number | null;
 }
 
 export interface OrderRecord {

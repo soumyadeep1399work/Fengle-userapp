@@ -25,6 +25,14 @@ export function SearchIcon({ size = 15, color = '#B4A7AC', strokeWidth = 2.2 }: 
   );
 }
 
+export function ArrowRightIcon({ size = 20, color = '#251C21', strokeWidth = 2.4 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M5 12h14M13 6l6 6-6 6" />
+    </Svg>
+  );
+}
+
 export function HeartIcon({ size = 12, color = '#6423C9', strokeWidth = 2, filled = false }: IconProps & { filled?: boolean }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? color : 'none'} stroke={color} strokeWidth={strokeWidth}>

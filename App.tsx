@@ -36,6 +36,9 @@ import { colors } from './src/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
+const SPLASH_MIN_MS = 1000;
+const APP_START = Date.now();
+
 type GateStatus = 'checking' | 'required' | 'clear';
 
 /**
@@ -91,10 +94,12 @@ function Main() {
   const { isLoading: authLoading, isLoggedIn } = useAuth();
   const ready = (fontsLoaded || fontError) && !authLoading;
 
+  // Keep the native splash up for at least SPLASH_MIN_MS from app start, even when everything loads sooner.
   useEffect(() => {
-    if (ready) {
-      SplashScreen.hideAsync().catch(() => {});
-    }
+    if (!ready) return;
+    const wait = Math.max(0, SPLASH_MIN_MS - (Date.now() - APP_START));
+    const timer = setTimeout(() => SplashScreen.hideAsync().catch(() => {}), wait);
+    return () => clearTimeout(timer);
   }, [ready]);
 
   if (!ready) {

@@ -293,8 +293,8 @@ export default function CheckoutScreen({ navigation }: Props) {
           <View style={{ marginTop: 10, gap: 6 }}>
             {summaryLines.map(({ id, item, qty }) => (
               <View key={id} style={styles.rowBetween}>
-                <Text style={styles.summaryLine}>{qty} × {item.name}</Text>
-                <Text style={styles.summaryLine}>₹{item.price * qty}</Text>
+                <Text style={styles.summaryLine}>{qty} × {item.name}{item.portion ? ` (${item.portion})` : ''}</Text>
+                <Text style={styles.summaryLine}>₹{item.effectivePrice * qty}</Text>
               </View>
             ))}
           </View>

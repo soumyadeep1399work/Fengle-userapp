@@ -8,20 +8,14 @@ import { colors, fonts, radii } from '../theme';
 import { Coupon } from '../types';
 import { fetchMyCoupons } from '../api/coupons';
 import { formatMoney } from '../utils/money';
+import { discountLabel } from '../utils/coupon';
 import { formatFullDate } from '../utils/time';
 import { useCart } from '../context/CartContext';
 import { BackChevronIcon } from '../components/Icons';
 import PrimaryButton from '../components/PrimaryButton';
+import { usePullRefresh } from '../utils/usePullRefresh';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Coupons'>;
-
-function discountLabel(c: Coupon): string {
-  if (c.discountType === 'percent') {
-    const cap = c.maxDiscountAmount ? ` up to ${formatMoney(c.maxDiscountAmount)}` : '';
-    return `${c.discountValue}% off${cap}`;
-  }
-  return `${formatMoney(c.discountValue)} off`;
-}
 
 export default function CouponsScreen({ navigation }: Props) {
   const { couponCode, applyCoupon } = useCart();
@@ -43,6 +37,8 @@ export default function CouponsScreen({ navigation }: Props) {
   useEffect(() => {
     load();
   }, [load]);
+
+  const refresh = usePullRefresh(load);
 
   async function handleApply(c: Coupon) {
     applyCoupon(c.code);
@@ -76,7 +72,7 @@ export default function CouponsScreen({ navigation }: Props) {
       )}
 
       {status === 'ready' && coupons.length > 0 && (
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView contentContainerStyle={styles.scroll} refreshControl={refresh}>
           {coupons.map((c) => {
             const isApplied = couponCode === c.code;
             return (

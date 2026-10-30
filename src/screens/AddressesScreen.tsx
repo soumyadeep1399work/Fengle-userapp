@@ -6,11 +6,13 @@ import { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, fonts, radii } from '../theme';
 import { useAddresses } from '../context/AddressContext';
 import { BackChevronIcon } from '../components/Icons';
+import { usePullRefresh } from '../utils/usePullRefresh';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Addresses'>;
 
 export default function AddressesScreen({ navigation }: Props) {
-  const { addresses, selectedId, selectAddress, deleteAddress } = useAddresses();
+  const { addresses, selectedId, selectAddress, deleteAddress, refreshAddresses } = useAddresses();
+  const refresh = usePullRefresh(refreshAddresses);
 
   function confirmDelete(id: string, label: string) {
     if (addresses.length <= 1) {
@@ -37,7 +39,7 @@ export default function AddressesScreen({ navigation }: Props) {
         <Text style={styles.headerTitle}>Saved addresses</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={styles.scroll} refreshControl={refresh}>
         {addresses.map((a) => {
           const selected = a.id === selectedId;
           return (

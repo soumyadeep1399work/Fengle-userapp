@@ -4,10 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, fonts, radii } from '../theme';
-import { displayOrderId, useOrders, summaryLinesFor } from '../context/OrdersContext';
+import { COD_PAY_LABEL, displayOrderId, useOrders, summaryLinesFor } from '../context/OrdersContext';
+import { formatMoney } from '../utils/money';
 import { fetchOrderStatus } from '../api/orders';
 import { serverNow } from '../api/client';
 import { BackChevronIcon, BellIcon, PhoneIcon, StarIcon } from '../components/Icons';
+import { usePullRefresh } from '../utils/usePullRefresh';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderStatus'>;
 
@@ -74,12 +76,15 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
     };
   }, [finished, orderId, applyServerStatus, loadOrder]);
 
+  const refresh = usePullRefresh(() => loadOrder(orderId));
+
   if (!order) return null;
 
   const stepIdx = order.statusStep;
   const showEta = stepIdx >= 2 && !order.cancelled && !!order.etaLabel;
   const showRider = stepIdx >= 2 && stepIdx < 4 && !order.cancelled && !!order.riderPhone;
   const showDeliveryCode = stepIdx >= 2 && stepIdx < 4 && !order.cancelled && !!order.deliveryOtp;
+  const showCodReminder = order.payLabel === COD_PAY_LABEL && stepIdx < 4 && !order.cancelled;
   const showRatings = stepIdx === 4 && !order.cancelled;
   const summaryLines = summaryLinesFor(order);
   const secondsLeft = order.cancellableUntil ? Math.max(0, Math.ceil((order.cancellableUntil - now) / 1000)) : 0;
@@ -113,7 +118,7 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll}>
+      <ScrollView contentContainerStyle={styles.scroll} refreshControl={refresh}>
         {order.cancelled && (
           <View style={styles.cancelledCard}>
             <Text style={styles.cancelledTitle}>Order cancelled</Text>
@@ -160,6 +165,14 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
             <Text style={styles.otpLabel}>Share this code at drop-off</Text>
             <Text style={styles.otpValue}>{order.deliveryOtp}</Text>
             <Text style={styles.otpNote}>Your delivery partner will ask for this to confirm it&apos;s your order.</Text>
+          </View>
+        )}
+
+        {showCodReminder && (
+          <View style={styles.codCard}>
+            <Text style={styles.codLabel}>Cash on delivery</Text>
+            <Text style={styles.codAmount}>Keep {formatMoney(order.total)} ready</Text>
+            <Text style={styles.codNote}>Please pay this amount in cash to your delivery partner. Exact change helps.</Text>
           </View>
         )}
 
@@ -286,8 +299,13 @@ export default function OrderStatusScreen({ navigation, route }: Props) {
           <Text style={styles.summaryHead}>In this order</Text>
           {summaryLines.map((ln) => (
             <View key={ln.id} style={styles.summaryLine}>
-              <Text style={styles.summaryLineText}>{ln.qty} × {ln.name}</Text>
-              {ln.priced && <Text style={styles.summaryLineValue}>₹{ln.line}</Text>}
+              <Text style={styles.summaryLineText}>{ln.qty} × {ln.name}{ln.portion ? ` (${ln.portion})` : ''}</Text>
+              {ln.priced && (
+                <Text style={styles.summaryLineValue}>
+                  {ln.listLine != null && <Text style={styles.strikeValue}>₹{ln.listLine}  </Text>}
+                  ₹{ln.line}
+                </Text>
+              )}
             </View>
           ))}
         </View>
@@ -320,6 +338,11 @@ const styles = StyleSheet.create({
   otpCard: { alignItems: 'center', borderRadius: radii.md, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.primary, backgroundColor: colors.primaryTint, padding: 16, marginBottom: 20 },
   otpLabel: { fontSize: 11.5, fontFamily: fonts.bodyBold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.primaryMid },
   otpValue: { marginTop: 6, fontFamily: fonts.heading, fontSize: 32, letterSpacing: 8, color: colors.ink },
+  codCard: { borderRadius: radii.md, borderWidth: 1, borderColor: '#EBD7A8', backgroundColor: colors.goldChipBg, padding: 14, marginBottom: 20 },
+  codLabel: { fontSize: 11, fontFamily: fonts.bodyBold, letterSpacing: 0.6, textTransform: 'uppercase', color: colors.goldChipText },
+  codAmount: { marginTop: 3, fontSize: 17, fontFamily: fonts.heading, color: colors.ink },
+  codNote: { marginTop: 4, fontSize: 12, lineHeight: 17, color: colors.bodyMuted },
+  strikeValue: { color: colors.mutedLight, textDecorationLine: 'line-through', fontFamily: fonts.bodyBold },
   otpNote: { marginTop: 6, fontSize: 11.5, lineHeight: 16, color: colors.bodyMuted, textAlign: 'center' },
   ratingCard: { marginTop: 4, marginBottom: 16, padding: 16, borderRadius: radii.md, borderWidth: 1, borderColor: colors.borderAlt, alignItems: 'center' },
   ratingTitle: { fontSize: 14.5, fontFamily: fonts.bodyExtraBold, color: colors.ink, textAlign: 'center' },

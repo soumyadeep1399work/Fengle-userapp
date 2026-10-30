@@ -62,7 +62,16 @@ export interface ApiItem {
   name: string;
   description: string | null;
   price: number | string;
+  /** Discounted price, only while an offer is in force right now (the server does the clock logic). */
+  offer_price?: number | string | null;
+  offer_ends_at?: string | null;
+  /** What is charged right now: offer_price when in force, else price. */
+  effective_price?: number | string | null;
   image_url: string | null;
+  /** Server-built label such as "3 pc" / "500 gm"; the raw fields below are the fallback. */
+  portion_label?: string | null;
+  quantity_value?: number | string | null;
+  quantity_unit?: string | null;
   is_veg: boolean | number;
   avgRating: number | null;
   ratingCount: number;
@@ -87,15 +96,29 @@ export function mapCategory(c: ApiCategory): Category {
   };
 }
 
+/** "3 pc", "500 gm", or null when the dish has no quantity set. */
+export function portionLabel(i: { portion_label?: string | null; quantity_value?: number | string | null; quantity_unit?: string | null }): string | null {
+  if (i.portion_label && i.portion_label.trim()) return i.portion_label.trim();
+  const value = Number(i.quantity_value);
+  if (i.quantity_value == null || !Number.isFinite(value) || value <= 0 || !i.quantity_unit) return null;
+  return `${value} ${i.quantity_unit}`;
+}
+
 export function mapItem(i: ApiItem): Item {
+  const price = Number(i.price);
+  const offerPrice = i.offer_price == null ? null : Number(i.offer_price);
   return {
     id: String(i.id),
     categoryId: String(i.category_id),
     name: i.name,
-    price: Number(i.price),
+    price,
+    offerPrice,
+    offerEndsAt: offerPrice == null ? null : i.offer_ends_at ?? null,
+    effectivePrice: i.effective_price != null ? Number(i.effective_price) : offerPrice ?? price,
     veg: Boolean(i.is_veg),
     desc: i.description ?? '',
     imageUrl: i.image_url,
+    portion: portionLabel(i),
     avgRating: i.avgRating == null ? null : Number(i.avgRating),
     ratingCount: Number(i.ratingCount ?? 0),
   };

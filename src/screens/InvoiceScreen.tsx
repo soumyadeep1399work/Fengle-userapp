@@ -11,6 +11,7 @@ import { formatMoney } from '../utils/money';
 import { formatFullDate } from '../utils/time';
 import { BackChevronIcon, DownloadIcon } from '../components/Icons';
 import PrimaryButton from '../components/PrimaryButton';
+import { usePullRefresh } from '../utils/usePullRefresh';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Invoice'>;
 
@@ -35,6 +36,8 @@ export default function InvoiceScreen({ navigation, route }: Props) {
   useEffect(() => {
     load();
   }, [load]);
+
+  const refresh = usePullRefresh(load);
 
   // Saves the PDF and opens the system share sheet, from where it can be
   // saved, opened or sent on.
@@ -72,7 +75,7 @@ export default function InvoiceScreen({ navigation, route }: Props) {
       )}
 
       {status === 'ready' && invoice && (
-        <ScrollView contentContainerStyle={styles.scroll}>
+        <ScrollView contentContainerStyle={styles.scroll} refreshControl={refresh}>
           <View style={styles.topRow}>
             <View style={styles.brandRow}>
               <Image source={require('../../assets/fengle-logo.png')} style={styles.logo} />
@@ -82,7 +85,7 @@ export default function InvoiceScreen({ navigation, route }: Props) {
           </View>
 
           <Text style={styles.companyBlock}>
-            {invoice.issuer.name}{'\n'}GSTIN {invoice.issuer.gstin} · FSSAI {invoice.issuer.fssai}{'\n'}{invoice.issuer.address}
+            {invoice.issuer.name}{'\n'}GSTIN {invoice.issuer.gstin}{'\n'}{invoice.issuer.address}
           </Text>
 
           <View style={styles.metaBlock}>

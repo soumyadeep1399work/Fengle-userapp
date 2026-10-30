@@ -11,6 +11,7 @@ import { BackChevronIcon } from '../components/Icons';
 import ItemRow from '../components/ItemRow';
 import FloatingCartBar from '../components/FloatingCartBar';
 import PrimaryButton from '../components/PrimaryButton';
+import { usePullRefresh } from '../utils/usePullRefresh';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Favorites'>;
 
@@ -26,6 +27,8 @@ export default function FavoritesScreen({ navigation }: Props) {
     }, [refreshFavorites])
   );
 
+  const refresh = usePullRefresh(refreshFavorites);
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
@@ -33,7 +36,7 @@ export default function FavoritesScreen({ navigation }: Props) {
         <Text style={styles.headerTitle}>Favourites</Text>
       </View>
 
-      <ScrollView contentContainerStyle={[styles.list, { paddingBottom: 110 + insets.bottom }]}>
+      <ScrollView contentContainerStyle={[styles.list, { paddingBottom: 110 + insets.bottom }]} refreshControl={refresh}>
         {status === 'loading' && favorites.length === 0 && <ActivityIndicator style={styles.state} color={colors.primary} />}
 
         {status === 'error' && favorites.length === 0 && (

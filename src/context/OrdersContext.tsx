@@ -70,10 +70,11 @@ export function findPendingRating(orders: OrderRecord[]): OrderRecord | undefine
 function mergeOrder(existing: OrderRecord | undefined, next: OrderRecord): OrderRecord {
   if (!existing) return next;
   const prices = new Map(existing.lines.map((l) => [l.id, l.unitPrice]));
+  const listPrices = new Map(existing.lines.map((l) => [l.id, l.listPrice]));
   return {
     ...next,
     prep: existing.prep || next.prep,
-    lines: next.lines.map((l) => ({ ...l, unitPrice: l.unitPrice ?? prices.get(l.id) ?? null })),
+    lines: next.lines.map((l) => ({ ...l, unitPrice: l.unitPrice ?? prices.get(l.id) ?? null, listPrice: l.unitPrice != null ? l.listPrice : listPrices.get(l.id) ?? null })),
     riderName: next.riderName || existing.riderName,
     riderPhone: next.riderPhone || existing.riderPhone,
   };
@@ -160,7 +161,7 @@ export function OrdersProvider({ children }: { children: React.ReactNode }) {
         prep: primary?.prep ?? '',
         lines: Object.entries(cart.items).map(([id, qty]) => {
           const item = getItem(id);
-          return { id, name: item.name, qty, unitPrice: item.price };
+          return { id, name: item.name, portion: item.portion, qty, unitPrice: item.effectivePrice, listPrice: item.offerPrice != null ? item.price : null };
         }),
         subtotal: Number(order.item_total),
         fee: Number(order.delivery_fee),
@@ -293,8 +294,11 @@ export function summaryLinesFor(order: OrderRecord) {
   return order.lines.map((l) => ({
     id: l.id,
     name: l.name,
+    portion: l.portion,
     qty: l.qty,
     line: (l.unitPrice ?? 0) * l.qty,
+    /** The same lines at the normal price, only when an offer applied (to show struck through). */
+    listLine: l.listPrice != null && l.unitPrice != null && l.listPrice > l.unitPrice ? l.listPrice * l.qty : null,
     priced: l.unitPrice != null,
   }));
 }

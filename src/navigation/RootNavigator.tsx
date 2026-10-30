@@ -4,7 +4,6 @@ import { CategoryId } from '../types';
 import { colors } from '../theme';
 import { useAuth } from '../context/AuthContext';
 
-import SplashScreen from '../screens/SplashScreen';
 import OnboardingScreen from '../screens/OnboardingScreen';
 import PhoneScreen from '../screens/PhoneScreen';
 import OtpScreen from '../screens/OtpScreen';
@@ -26,9 +25,9 @@ import MapPickerScreen from '../screens/MapPickerScreen';
 import FavoritesScreen from '../screens/FavoritesScreen';
 import NotificationSettingsScreen from '../screens/NotificationSettingsScreen';
 import CouponsScreen from '../screens/CouponsScreen';
+import AllCategoriesScreen from '../screens/AllCategoriesScreen';
 
 export type RootStackParamList = {
-  Splash: undefined;
   Onboarding: undefined;
   Phone: undefined;
   Otp: { phone: string };
@@ -50,6 +49,7 @@ export type RootStackParamList = {
   Favorites: undefined;
   NotificationSettings: undefined;
   Coupons: undefined;
+  AllCategories: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -58,10 +58,9 @@ export default function RootNavigator() {
   const { isLoggedIn } = useAuth();
   return (
     <Stack.Navigator
-      initialRouteName={isLoggedIn ? 'Home' : 'Splash'}
+      initialRouteName={isLoggedIn ? 'Home' : 'Onboarding'}
       screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}
     >
-      <Stack.Screen name="Splash" component={SplashScreen} />
       <Stack.Screen name="Onboarding" component={OnboardingScreen} />
       <Stack.Screen name="Phone" component={PhoneScreen} />
       <Stack.Screen name="Otp" component={OtpScreen} />
@@ -83,6 +82,7 @@ export default function RootNavigator() {
       <Stack.Screen name="Favorites" component={FavoritesScreen} />
       <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
       <Stack.Screen name="Coupons" component={CouponsScreen} />
+      <Stack.Screen name="AllCategories" component={AllCategoriesScreen} />
     </Stack.Navigator>
   );
 }

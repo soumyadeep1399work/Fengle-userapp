@@ -1,4 +1,3 @@
-import { imageSource } from '../utils/images';
 import React, { useState } from 'react';
 import { Image, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,12 +8,10 @@ import { colors, fonts, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
 
-const WIKI = 'https://commons.wikimedia.org/wiki/Special:FilePath/';
-
 const SLIDES = [
-  { img: WIKI + 'Indian_cuisine.jpg', headline: 'One craving, many kitchens', body: 'Order Bengali, biryani, or dosa — each category is its own kitchen near you.', btn: 'Next' },
-  { img: WIKI + 'Bengali_food.jpg', headline: 'One kitchen at a time', body: 'Your cart holds one category. Nearby kitchens can sometimes club into a single delivery.', btn: 'Next' },
-  { img: WIKI + 'Thali.jpg', headline: "You're set", body: 'UPI or cash on delivery. Track your order live once it is placed.', btn: 'Get started' },
+  { img: require('../../assets/onboarding/onboarding-1.jpg'), headline: 'One craving, many kitchens', body: 'Order Bengali, biryani, or dosa — each category is its own kitchen near you.', btn: 'Next' },
+  { img: require('../../assets/onboarding/onboarding-2.jpg'), headline: 'One kitchen at a time', body: 'Your cart holds one category. Nearby kitchens can sometimes club into a single delivery.', btn: 'Next' },
+  { img: require('../../assets/onboarding/onboarding-3.jpg'), headline: "You're set", body: 'UPI or cash on delivery. Track your order live once it is placed.', btn: 'Get started' },
 ];
 
 export default function OnboardingScreen({ navigation }: Props) {
@@ -23,7 +20,7 @@ export default function OnboardingScreen({ navigation }: Props) {
   const isLast = idx === SLIDES.length - 1;
 
   return (
-    <ImageBackground source={imageSource(slide.img, 1000)} style={styles.bg}>
+    <ImageBackground source={slide.img} style={styles.bg}>
       <LinearGradient
         colors={['rgba(37,28,33,0.25)', 'rgba(37,28,33,0.92)']}
         locations={[0.4, 1]}

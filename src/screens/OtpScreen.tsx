@@ -8,6 +8,7 @@ import { colors, fonts, spacing } from '../theme';
 import PrimaryButton from '../components/PrimaryButton';
 import { useAuth } from '../context/AuthContext';
 import { requestOtp, verifyOtp } from '../api/auth';
+import { listenForSmsConsent, stopSmsConsent } from '../../modules/fengle-sms-consent';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Otp'>;
 
@@ -17,6 +18,15 @@ function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : 'Something went wrong. Please try again.';
 }
 
+// Prefers a standalone 6-digit code ("123456 is your Fengle login OTP...") so digits
+// elsewhere in a pasted SMS (like "5 minutes") can't end up in the code.
+function extractOtp(text: string): string | null {
+  const standalone = text.match(/(?<!\d)\d{6}(?!\d)/);
+  if (standalone) return standalone[0];
+  const digits = text.replace(/[^0-9]/g, '');
+  return digits.length >= 6 ? digits.slice(0, 6) : null;
+}
+
 export default function OtpScreen({ navigation, route }: Props) {
   const { phone } = route.params;
   const { login } = useAuth();
@@ -24,6 +34,7 @@ export default function OtpScreen({ navigation, route }: Props) {
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState('');
   const [cooldown, setCooldown] = useState(RESEND_SECONDS);
+  const [listenTick, setListenTick] = useState(0);
   const valid = otp.length === 6;
   const digits = Array.from({ length: 6 }, (_, i) => otp[i] || '');
 
@@ -33,11 +44,29 @@ export default function OtpScreen({ navigation, route }: Props) {
     return () => clearTimeout(id);
   }, [cooldown]);
 
-  async function handleVerify() {
+  // 1st choice: read the SMS automatically (Android asks the user to allow it once).
+  // Restarted after every resend because each listen only lasts for one SMS.
+  useEffect(() => {
+    let cancelled = false;
+    listenForSmsConsent().then((message) => {
+      if (cancelled || !message) return;
+      const code = extractOtp(message);
+      if (code) {
+        setOtp(code);
+        handleVerify(code);
+      }
+    });
+    return () => {
+      cancelled = true;
+      stopSmsConsent();
+    };
+  }, [listenTick]);
+
+  async function handleVerify(code: string = otp) {
     setVerifying(true);
     setError('');
     try {
-      const { token, user } = await verifyOtp(phone, otp);
+      const { token, user } = await verifyOtp(phone, code);
       await login(token, user);
       navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
     } catch (e) {
@@ -53,6 +82,7 @@ export default function OtpScreen({ navigation, route }: Props) {
     try {
       await requestOtp(phone);
       setCooldown(RESEND_SECONDS);
+      setListenTick((t) => t + 1);
     } catch (e) {
       setError(errorMessage(e));
     }
@@ -60,7 +90,7 @@ export default function OtpScreen({ navigation, route }: Props) {
 
   async function handlePaste() {
     const text = await Clipboard.getStringAsync();
-    const code = text.replace(/[^0-9]/g, '').slice(0, 6);
+    const code = extractOtp(text);
     if (code) setOtp(code);
   }
 
@@ -86,6 +116,8 @@ export default function OtpScreen({ navigation, route }: Props) {
             keyboardType="number-pad"
             autoComplete="sms-otp"
             textContentType="oneTimeCode"
+            importantForAutofill="yes"
+            autoFocus
             maxLength={6}
             style={styles.hiddenInput}
           />
@@ -117,7 +149,7 @@ export default function OtpScreen({ navigation, route }: Props) {
         <PrimaryButton
           label={verifying ? 'Verifying…' : 'Verify & continue'}
           disabled={!valid || verifying}
-          onPress={handleVerify}
+          onPress={() => handleVerify()}
         />
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -131,7 +163,7 @@ const styles = StyleSheet.create({
   subtitle: { marginTop: spacing.xs, fontFamily: fonts.body, fontSize: 13.5, lineHeight: 20, color: colors.bodyMuted },
   change: { color: colors.primaryMid, fontFamily: fonts.bodyExtraBold },
   otpWrap: { marginTop: 22 },
-  hiddenInput: { position: 'absolute', top: 0, left: 0, right: 0, height: 56, opacity: 0, fontSize: 20 },
+  hiddenInput: { position: 'absolute', top: 0, left: 0, right: 0, height: 56, opacity: 0.02, fontSize: 20 },
   digitRow: { flexDirection: 'row', gap: 8 },
   digitBox: {
     flex: 1, height: 56, borderRadius: 14, borderWidth: 1.5,

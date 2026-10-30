@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,20 +11,21 @@ import { useCart } from '../context/CartContext';
 import { usePreferences } from '../context/PreferencesContext';
 import { useAddresses } from '../context/AddressContext';
 import { initialsOf, useProfile } from '../context/ProfileContext';
-import { PinIcon, SearchIcon, HeartIcon, ClubbingIcon, StarIcon, NavAccountIcon } from '../components/Icons';
+import { PinIcon, SearchIcon, HeartIcon, StarIcon, ArrowRightIcon, NavAccountIcon } from '../components/Icons';
 import BottomNavBar, { BOTTOM_NAV_BASE_HEIGHT } from '../components/BottomNavBar';
 import FloatingCartBar from '../components/FloatingCartBar';
 import BrandFooter from '../components/BrandFooter';
+import HomeBanner from '../components/HomeBanner';
+import CategoryImage from '../components/CategoryImage';
+import PriceTag from '../components/PriceTag';
+import { ClubbingCard, ClubbingSheet, useClubCombos } from '../components/ClubbingInfo';
 import { imageSource } from '../utils/images';
+import { usePullRefresh } from '../utils/usePullRefresh';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
-const CHIP_PALETTE = [
-  { bg: '#EFE6FB', fg: '#6423C9' },
-  { bg: '#FDF1E2', fg: '#B9791F' },
-  { bg: '#F1E6FB', fg: '#6423C9' },
-  { bg: '#E7F5EF', fg: '#1F7A5C' },
-];
+// How many categories the Home row shows before the "View all" circle.
+const HOME_CATEGORY_COUNT = 10;
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -35,8 +36,8 @@ export default function HomeScreen({ navigation }: Props) {
   const { itemCount, subtotal, requestAdd } = useCart();
   const { vegOnly, toggleVeg } = usePreferences();
   const { selectedAddress, addresses, loaded, loadFailed, refreshAddresses } = useAddresses();
-  const { profile } = useProfile();
-  const { isFavorite, toggleFavorite } = useFavorites();
+  const { profile, refreshProfile } = useProfile();
+  const { isFavorite, toggleFavorite, refreshFavorites } = useFavorites();
   const insets = useSafeAreaInsets();
 
   const noAddress = loaded && addresses.length === 0;
@@ -67,8 +68,11 @@ export default function HomeScreen({ navigation }: Props) {
         ? 'Add delivery address'
         : 'Loading…';
   const { categories, categoriesStatus, reloadCategories, popularPicks } = useCatalog();
+  const refresh = usePullRefresh(() => Promise.all([reloadCategories(), refreshAddresses(), refreshProfile(), refreshFavorites()]));
   const popular = popularPicks.filter((p) => !vegOnly || p.item.veg);
   const firstCategoryId = categories[0]?.id;
+  const clubCombos = useClubCombos(categories);
+  const [clubSheetOpen, setClubSheetOpen] = useState(false);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -112,7 +116,7 @@ export default function HomeScreen({ navigation }: Props) {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={styles.scroll} style={{ flex: 1 }} refreshControl={refresh}>
         {noAddress && (
           <Pressable onPress={() => navigation.navigate('AddAddress', { firstTime: true })} style={styles.noAddrCard}>
             <Text style={styles.noAddrTitle}>Add your delivery address</Text>
@@ -120,24 +124,11 @@ export default function HomeScreen({ navigation }: Props) {
           </Pressable>
         )}
 
-        <Pressable
-          onPress={() => firstCategoryId && navigation.navigate('Category', { categoryId: firstCategoryId })}
-          style={styles.banner}
-        >
-          <LinearGradient colors={['#6423C9', '#200A4D']} style={StyleSheet.absoluteFill} />
-          <View style={styles.bannerRing} />
-          <Text style={styles.bannerTitle}>One craving.{'\n'}One kitchen.</Text>
-          <Text style={styles.bannerSub}>Order Bengali, biryani, or dosa — always from a single nearby kitchen.</Text>
-          <View style={styles.bannerCta}>
-            <Text style={styles.bannerCtaLabel}>Order now →</Text>
-          </View>
-          <View style={styles.bannerDots}>
-            <View style={[styles.bannerDot, { width: 16, backgroundColor: colors.gold }]} />
-            <View style={styles.bannerDot} />
-            <View style={styles.bannerDot} />
-            <View style={styles.bannerDot} />
-          </View>
-        </Pressable>
+        <HomeBanner
+          categories={categories}
+          onOpenCategory={(id) => navigation.navigate('Category', { categoryId: id })}
+          onOpenCoupons={() => navigation.navigate('Coupons')}
+        />
 
         {categoriesStatus === 'loading' && categories.length === 0 && (
           <ActivityIndicator style={styles.catalogLoader} color={colors.primary} />
@@ -157,17 +148,18 @@ export default function HomeScreen({ navigation }: Props) {
 
         {categories.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipsScroll}>
-            {categories.map((c, i) => {
-              const p = CHIP_PALETTE[i % 4];
-              return (
-                <Pressable key={c.id} onPress={() => navigation.navigate('Category', { categoryId: c.id })} style={styles.chipItem}>
-                  <View style={[styles.chipCircle, { backgroundColor: p.bg }]}>
-                    <Text style={[styles.chipInitial, { color: p.fg }]}>{c.name[0]}</Text>
-                  </View>
-                  <Text style={styles.chipLabel} numberOfLines={1}>{c.name}</Text>
-                </Pressable>
-              );
-            })}
+            {categories.slice(0, HOME_CATEGORY_COUNT).map((c, i) => (
+              <Pressable key={c.id} onPress={() => navigation.navigate('Category', { categoryId: c.id })} style={styles.chipItem}>
+                <CategoryImage uri={c.img} name={c.name} tintIndex={i} imageWidth={200} letterSize={17} style={styles.chipCircle} />
+                <Text style={styles.chipLabel} numberOfLines={2}>{c.name}</Text>
+              </Pressable>
+            ))}
+            <Pressable onPress={() => navigation.navigate('AllCategories')} style={styles.chipItem}>
+              <View style={[styles.chipCircle, styles.viewAllCircle]}>
+                <ArrowRightIcon size={22} color={colors.primaryMid} />
+              </View>
+              <Text style={[styles.chipLabel, { color: colors.primaryMid }]}>View all</Text>
+            </Pressable>
           </ScrollView>
         )}
 
@@ -200,7 +192,7 @@ export default function HomeScreen({ navigation }: Props) {
                     </View>
                     <View style={styles.pickInfo}>
                       <Text style={styles.pickName} numberOfLines={1}>{item.name}</Text>
-                      <Text style={styles.pickDesc} numberOfLines={1}>{item.desc}</Text>
+                      <Text style={styles.pickDesc} numberOfLines={1}>{item.portion ? `${item.portion} · ${item.desc}` : item.desc}</Text>
                       {item.avgRating != null && (
                         <View style={styles.pickRatingRow}>
                           <StarIcon size={11} filled color={colors.gold} />
@@ -208,7 +200,7 @@ export default function HomeScreen({ navigation }: Props) {
                         </View>
                       )}
                       <View style={styles.pickBottomRow}>
-                        <Text style={styles.pickPrice}>₹{item.price}</Text>
+                        <PriceTag price={item.price} offerPrice={item.offerPrice} style={styles.pickPrice} />
                         <Pressable onPress={() => requestAdd(item)} style={styles.pickAddBtn}>
                           <Text style={styles.pickAddLabel}>+</Text>
                         </Pressable>
@@ -221,23 +213,19 @@ export default function HomeScreen({ navigation }: Props) {
           </>
         )}
 
-        <Pressable style={styles.clubBanner}>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.clubEyebrow}>Kitchen clubbing</Text>
-            <Text style={styles.clubTitle}>Two nearby kitchens, one delivery</Text>
-            <View style={styles.clubCta}>
-              <Text style={styles.clubCtaLabel}>See how it works →</Text>
-            </View>
-          </View>
-          <View style={styles.clubIconCircle}>
-            <ClubbingIcon />
-          </View>
-        </Pressable>
+        <ClubbingCard combos={clubCombos} onPress={() => setClubSheetOpen(true)} />
 
         <BrandFooter />
       </ScrollView>
 
       <FloatingCartBar itemCount={itemCount} subtotal={subtotal} bottom={BOTTOM_NAV_BASE_HEIGHT + insets.bottom + 16} />
+
+      <ClubbingSheet
+        visible={clubSheetOpen}
+        combos={clubCombos}
+        onClose={() => setClubSheetOpen(false)}
+        onOpenCategory={(id) => navigation.navigate('Category', { categoryId: id })}
+      />
 
       <BottomNavBar active="home" />
     </SafeAreaView>
@@ -271,23 +259,15 @@ const styles = StyleSheet.create({
   noAddrCard: { marginBottom: 16, padding: 16, borderRadius: 16, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.primaryMid, backgroundColor: colors.primaryTint },
   noAddrTitle: { fontSize: 14.5, fontFamily: fonts.bodyExtraBold, color: colors.primaryMid },
   noAddrBody: { marginTop: 3, fontSize: 12.5, color: colors.bodyMuted },
-  banner: { borderRadius: 20, padding: 22, paddingRight: 20, overflow: 'hidden', position: 'relative' },
-  bannerRing: { position: 'absolute', right: -30, top: -30, width: 150, height: 150, borderRadius: 75, borderWidth: 2, borderColor: 'rgba(255,255,255,0.15)' },
-  bannerTitle: { fontFamily: fonts.heading, fontSize: 22, lineHeight: 26, color: '#FFF', letterSpacing: -0.5 },
-  bannerSub: { marginTop: 6, fontSize: 12.5, color: 'rgba(255,255,255,0.8)', maxWidth: 220 },
-  bannerCta: { marginTop: 16, alignSelf: 'flex-start', height: 36, paddingHorizontal: 16, borderRadius: 99, backgroundColor: colors.gold, alignItems: 'center', justifyContent: 'center' },
-  bannerCtaLabel: { fontSize: 12.5, fontFamily: fonts.bodyExtraBold, color: colors.ink },
-  bannerDots: { marginTop: 14, flexDirection: 'row', gap: 5 },
-  bannerDot: { width: 4, height: 4, borderRadius: 99, backgroundColor: 'rgba(255,255,255,0.4)' },
   catalogLoader: { marginTop: 24 },
   catalogMessage: { marginTop: 18, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: colors.borderAlt, alignItems: 'center' },
   catalogMessageTitle: { fontSize: 14, fontFamily: fonts.bodyExtraBold, color: colors.ink },
   catalogMessageBody: { marginTop: 3, fontSize: 12.5, color: colors.bodyMuted, textAlign: 'center' },
   chipsScroll: { marginTop: 18 },
-  chipItem: { alignItems: 'center', gap: 6, width: 58, marginRight: 16 },
-  chipCircle: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
-  chipInitial: { fontFamily: fonts.heading, fontSize: 17 },
-  chipLabel: { fontSize: 10.5, fontFamily: fonts.bodyBold, color: colors.ink, textAlign: 'center', maxWidth: 58 },
+  chipItem: { alignItems: 'center', gap: 6, width: 60, marginRight: 14 },
+  chipCircle: { width: 56, height: 56, borderRadius: 28 },
+  chipLabel: { fontSize: 10.5, lineHeight: 13, fontFamily: fonts.bodyBold, color: colors.ink, textAlign: 'center', maxWidth: 62 },
+  viewAllCircle: { backgroundColor: colors.primaryTint, borderWidth: 1.5, borderColor: '#C9AEEC', alignItems: 'center', justifyContent: 'center' },
   sectionHeadRow: { marginTop: 22, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   sectionHead: { fontFamily: fonts.heading, fontSize: 18, color: colors.ink, letterSpacing: -0.4 },
   viewAll: { fontSize: 12.5, fontFamily: fonts.bodyBold, color: colors.primaryMid },
@@ -306,10 +286,4 @@ const styles = StyleSheet.create({
   pickPrice: { fontSize: 14, fontFamily: fonts.bodyExtraBold, color: colors.ink },
   pickAddBtn: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.gold, alignItems: 'center', justifyContent: 'center' },
   pickAddLabel: { fontSize: 16, fontFamily: fonts.bodyBold, color: '#FFF' },
-  clubBanner: { marginTop: 20, borderRadius: 16, backgroundColor: colors.primaryTint, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 14 },
-  clubEyebrow: { fontSize: 10, fontFamily: fonts.bodyExtraBold, letterSpacing: 0.8, textTransform: 'uppercase', color: colors.primaryMid },
-  clubTitle: { marginTop: 4, fontFamily: fonts.heading, fontSize: 15, color: colors.ink, letterSpacing: -0.3 },
-  clubCta: { marginTop: 8, alignSelf: 'flex-start', height: 30, paddingHorizontal: 14, borderRadius: 99, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  clubCtaLabel: { fontSize: 11.5, fontFamily: fonts.bodyExtraBold, color: '#FFF' },
-  clubIconCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
 });

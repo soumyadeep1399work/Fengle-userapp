@@ -8,7 +8,7 @@ export interface Invoice {
   orderId: number;
   /** ISO order date. */
   date: string;
-  issuer: { name: string; gstin: string; fssai: string; address: string };
+  issuer: { name: string; gstin: string; address: string };
   billedTo: { name: string | null; address: string };
   lines: { description: string; amount: number }[];
   taxableValue: number;

@@ -10,6 +10,7 @@ import { useCart } from '../context/CartContext';
 import { usePreferences } from '../context/PreferencesContext';
 import { BackChevronIcon, SearchIcon } from '../components/Icons';
 import ItemRow from '../components/ItemRow';
+import { usePullRefresh } from '../utils/usePullRefresh';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Search'>;
 
@@ -19,6 +20,7 @@ export default function SearchScreen({ navigation }: Props) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Item[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [reloadTick, setReloadTick] = useState(0);
   const [error, setError] = useState('');
   const { cart, requestAdd, incrementItem, decrementItem } = useCart();
   const { vegOnly, toggleVeg } = usePreferences();
@@ -54,7 +56,10 @@ export default function SearchScreen({ navigation }: Props) {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [trimmed, vegOnly, search]);
+  }, [trimmed, vegOnly, search, reloadTick]);
+
+  // Pull down to run the current search again.
+  const refresh = usePullRefresh(() => setReloadTick((t) => t + 1));
 
   const groups = useMemo(() => {
     const names = new Map(categories.map((c) => [c.id, c.name]));
@@ -96,7 +101,7 @@ export default function SearchScreen({ navigation }: Props) {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={styles.list}>
+      <ScrollView contentContainerStyle={styles.list} refreshControl={refresh}>
         {!hasQuery && (
           <Text style={styles.hint}>Search for a dish across every category — try "dosa", "biryani", or "ilish".</Text>
         )}

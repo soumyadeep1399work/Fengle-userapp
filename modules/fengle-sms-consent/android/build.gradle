@@ -1,0 +1,21 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.fenglesmsconsent'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.fenglesmsconsent"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  implementation "androidx.core:core-ktx:1.17.0"
+  // SMS User Consent API only: needs no SMS permission and no app hash in the message.
+  implementation "com.google.android.gms:play-services-auth-api-phone:18.1.0"
+}

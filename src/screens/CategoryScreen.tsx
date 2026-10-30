@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -9,13 +9,13 @@ import { Category, CategorySection } from '../types';
 import { findCategory } from '../data/catalogStore';
 import { LocationError, useCatalog } from '../context/CatalogContext';
 import { useAddresses } from '../context/AddressContext';
-import { imageSource } from '../utils/images';
 import { useCart } from '../context/CartContext';
 import { usePreferences } from '../context/PreferencesContext';
 import ItemRow from '../components/ItemRow';
 import { BackChevronIcon } from '../components/Icons';
 import FloatingCartBar from '../components/FloatingCartBar';
 import PrimaryButton from '../components/PrimaryButton';
+import { usePullRefresh } from '../utils/usePullRefresh';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Category'>;
 
@@ -61,6 +61,8 @@ export default function CategoryScreen({ navigation, route }: Props) {
     load();
   }, [load]);
 
+  const refresh = usePullRefresh(load);
+
   const visibleSections = useMemo(
     () =>
       sections
@@ -76,12 +78,7 @@ export default function CategoryScreen({ navigation, route }: Props) {
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <View style={styles.hero}>
-        {category?.img ? (
-          <Image source={imageSource(category.img, 900)} style={StyleSheet.absoluteFill as any} />
-        ) : (
-          <LinearGradient colors={[colors.primaryMid, colors.primary]} style={StyleSheet.absoluteFill} />
-        )}
-        <LinearGradient colors={['rgba(20,10,15,0.15)', 'rgba(20,10,15,0.82)']} style={StyleSheet.absoluteFill} />
+        <LinearGradient colors={[colors.primaryMid, colors.primary]} style={StyleSheet.absoluteFill} />
         <Pressable onPress={() => navigation.goBack()} style={[styles.backBtn, { top: insets.top + 16 }]}>
           <BackChevronIcon />
         </Pressable>
@@ -134,7 +131,7 @@ export default function CategoryScreen({ navigation, route }: Props) {
       )}
 
       {status === 'ready' && (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.list, { paddingBottom: 110 + insets.bottom }]}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={[styles.list, { paddingBottom: 110 + insets.bottom }]} refreshControl={refresh}>
           {visibleSections.length === 0 && (
             <Text style={styles.message}>
               {sections.length === 0

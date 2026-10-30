@@ -2,6 +2,7 @@ import { OrderLine, OrderRecord, PaymentMethod } from '../types';
 import { Coords } from '../utils/location';
 import { formatClock, formatDay } from '../utils/time';
 import { apiFetch } from './client';
+import { portionLabel } from './mappers';
 
 /** Shown as the payment label for cash on delivery (nothing has been paid yet). */
 export const COD_PAY_LABEL = 'Cash on delivery';
@@ -154,9 +155,15 @@ interface ApiOrderRow extends ApiOrder {
 interface ApiOrderLine {
   item_id: number;
   name: string;
+  /** Snapshot of the dish's portion when the order was placed ("3 pc"). */
+  portion_label?: string | null;
+  portion_value?: number | string | null;
+  portion_unit?: string | null;
   quantity: number;
   /** Detail only. */
   unit_price?: string | number;
+  /** Detail only: the normal price when an offer was running at placement, else null. */
+  list_price?: string | number | null;
   /** Detail only: 'confirmed' | 'dropped_unavailable'. */
   status?: string;
 }
@@ -173,8 +180,10 @@ function mapOrder(row: ApiOrderRow, apiLines: ApiOrderLine[]): OrderRecord {
     .map((l) => ({
       id: String(l.item_id),
       name: l.name,
+      portion: portionLabel({ portion_label: l.portion_label, quantity_value: l.portion_value, quantity_unit: l.portion_unit }),
       qty: Number(l.quantity),
       unitPrice: l.unit_price == null ? null : Number(l.unit_price),
+      listPrice: l.list_price == null ? null : Number(l.list_price),
     }));
   const categoryIds = (row.categories ?? []).map((c) => String(c.id));
   const createdClock = formatClock(row.created_at);

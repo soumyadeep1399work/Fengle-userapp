@@ -135,7 +135,7 @@ export default function OrderHistoryScreen({ navigation }: Props) {
                 </View>
               </View>
               <Text style={styles.summary} numberOfLines={1}>
-                {order.lines.map((l) => `${l.qty} × ${l.name}`).join(', ')}
+                {order.lines.map((l) => `${l.qty} × ${l.name}${l.portion ? ` (${l.portion})` : ''}`).join(', ')}
               </Text>
               <Text style={styles.meta}>{formatMoney(order.total)} · {order.placedDate} · #{displayOrderId(order.id)}</Text>
               <View style={styles.actionsRow}>

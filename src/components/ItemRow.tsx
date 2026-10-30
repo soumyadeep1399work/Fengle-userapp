@@ -4,6 +4,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Item } from '../types';
 import { colors, fonts, radii, spacing } from '../theme';
 import VegDot from './VegDot';
+import PriceTag from './PriceTag';
+import { formatFullDate } from '../utils/time';
 import { HeartIcon, StarIcon } from './Icons';
 import { useFavorites } from '../context/FavoritesContext';
 import { imageSource } from '../utils/images';
@@ -30,6 +32,9 @@ export default function ItemRow({ item, qty, onAdd, onIncrement, onDecrement }: 
             <HeartIcon size={16} filled={favorite} color={favorite ? colors.conflictRed : colors.faint} />
           </Pressable>
         </View>
+        {!!item.portion && (
+          <View style={styles.portionChip}><Text style={styles.portionText}>{item.portion}</Text></View>
+        )}
         <Text style={styles.desc}>{item.desc}</Text>
         {item.avgRating != null && (
           <View style={styles.ratingRow}>
@@ -37,7 +42,12 @@ export default function ItemRow({ item, qty, onAdd, onIncrement, onDecrement }: 
             <Text style={styles.ratingText}>{item.avgRating.toFixed(1)} ({item.ratingCount})</Text>
           </View>
         )}
-        <Text style={styles.price}>₹{item.price}</Text>
+        <View style={styles.priceRow}>
+          <PriceTag price={item.price} offerPrice={item.offerPrice} style={styles.price} />
+          {item.offerPrice != null && !!item.offerEndsAt && (
+            <Text style={styles.offerEnds}>Offer ends {formatFullDate(item.offerEndsAt)}</Text>
+          )}
+        </View>
       </View>
       <View style={styles.photoCol}>
         {item.imageUrl && !photoFailed ? (
@@ -79,10 +89,14 @@ const styles = StyleSheet.create({
   titleLine: { flexDirection: 'row', alignItems: 'center', gap: 7 },
   heart: { marginLeft: 'auto', paddingLeft: 6 },
   name: { fontFamily: fonts.bodyBold, fontSize: 15.5, color: colors.ink, letterSpacing: -0.2, flexShrink: 1 },
+  portionChip: { alignSelf: 'flex-start', marginTop: 5, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radii.pill, backgroundColor: colors.primaryTint },
+  portionText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.primaryMid },
   desc: { marginTop: 4, fontFamily: fonts.body, fontSize: 12.5, color: colors.bodyMuted, lineHeight: 17 },
   ratingRow: { marginTop: 5, flexDirection: 'row', alignItems: 'center', gap: 4 },
   ratingText: { fontFamily: fonts.bodyBold, fontSize: 11, color: colors.mutedLight },
-  price: { marginTop: 8, fontFamily: fonts.bodyExtraBold, fontSize: 15, color: colors.ink },
+  priceRow: { marginTop: 8 },
+  offerEnds: { marginTop: 2, fontFamily: fonts.bodyBold, fontSize: 11, color: colors.veg },
+  price: { fontFamily: fonts.bodyExtraBold, fontSize: 15, color: colors.ink },
   photoCol: { width: 92, alignItems: 'center' },
   photo: {
     width: 88,

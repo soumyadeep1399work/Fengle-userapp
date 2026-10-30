@@ -227,7 +227,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     let total = 0;
     for (const [id, qty] of Object.entries(cart.items)) {
       count += qty;
-      total += getItem(id).price * qty;
+      total += getItem(id).effectivePrice * qty;
     }
     return { itemCount: count, subtotal: round2(total) };
   }, [cart.items]);

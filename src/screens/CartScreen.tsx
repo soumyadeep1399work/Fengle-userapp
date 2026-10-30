@@ -12,6 +12,7 @@ import { OrderRecord } from '../types';
 import { BackChevronIcon, EmptyCartIcon } from '../components/Icons';
 import PrimaryButton from '../components/PrimaryButton';
 import RestaurantRatingSheet from '../components/RestaurantRatingSheet';
+import { usePullRefresh } from '../utils/usePullRefresh';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Cart'>;
 
@@ -23,6 +24,11 @@ export default function CartScreen({ navigation }: Props) {
   const { refreshOrders, rateRestaurant, skipRestaurantRating } = useOrders();
   const [gateOrder, setGateOrder] = useState<OrderRecord | null>(null);
   const [checkingGate, setCheckingGate] = useState(false);
+  // Pull down to re-price the cart and re-read the orders.
+  const refresh = usePullRefresh(async () => {
+    refreshQuote();
+    await refreshOrders();
+  });
 
   const goBack = () => navigation.navigate(cart.cat ? 'Category' : 'Home', cart.cat ? { categoryId: cart.cat } : (undefined as any));
 
@@ -60,7 +66,7 @@ export default function CartScreen({ navigation }: Props) {
         </View>
       ) : (
         <>
-          <ScrollView contentContainerStyle={styles.scroll}>
+          <ScrollView contentContainerStyle={styles.scroll} refreshControl={refresh}>
             {cartCatIds.map((catId, groupIdx) => {
               const cat = getCategory(catId);
               const rows = Object.entries(cart.items).filter(([id]) => getItem(id).categoryId === catId);
@@ -85,14 +91,14 @@ export default function CartScreen({ navigation }: Props) {
                         </View>
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <Text style={styles.lineName}>{item.name}</Text>
-                          <Text style={styles.linePriceEach}>₹{item.price} each</Text>
+                          <Text style={styles.linePriceEach}>{item.portion ? `${item.portion} · ` : ''}₹{item.effectivePrice} each{item.offerPrice != null ? ` (was ₹${item.price})` : ''}</Text>
                         </View>
                         <View style={styles.stepper}>
                           <Text onPress={() => decrementItem(id)} style={styles.stepBtn}>−</Text>
                           <Text style={styles.stepQty}>{qty}</Text>
                           <Text onPress={() => incrementItem(id)} style={styles.stepBtnPlus}>+</Text>
                         </View>
-                        <Text style={styles.lineTotal}>₹{item.price * qty}</Text>
+                        <Text style={styles.lineTotal}>₹{item.effectivePrice * qty}</Text>
                       </View>
                     );
                   })}
