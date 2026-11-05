@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Linking, Modal, NativeModules, Pressable, StyleSheet, Text, TurboModuleRegistry, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
 import { colors, fonts } from '../theme';
@@ -26,10 +26,12 @@ interface Props {
   onCancel: () => void;
 }
 
-// Razorpay's hosted Checkout (checkout.js) inside a WebView: no native module,
-// so it works in Expo Go — same approach as the Leaflet map picker. UPI app
-// intents (upi://, tez://, phonepe://...) can't be navigated by the WebView
-// itself, so they're handed off to the OS via Linking instead.
+// Two ways to take the payment, same props and same result either way:
+//  1. NATIVE (the real app builds): Razorpay's official Android SDK via react-native-razorpay. Razorpay identifies the app by
+//     its package name (the Play Store app registered in the dashboard), so there is no website/origin to whitelist.
+//  2. WEBVIEW (fallback for Expo Go and web, where the native module doesn't exist): Razorpay's hosted checkout.js in a
+//     WebView. On Razorpay LIVE keys this is declined unless its origin is a registered domain, so it's for development only.
+// UPI app intents (upi://, tez://, phonepe://...) can't be navigated by the WebView itself, so they're handed to the OS via Linking.
 function buildHtml(opts: {
   keyId: string;
   orderId: string;
@@ -75,7 +77,7 @@ try {
 </body></html>`;
 }
 
-export default function RazorpayCheckoutModal({
+function WebViewCheckout({
   visible, keyId, orderId, amountPaise, currency, name, contact, email, onSuccess, onCancel,
 }: Props) {
   // Built once per order id: a changing HTML string would reload the WebView
@@ -158,3 +160,60 @@ const styles = StyleSheet.create({
   headerTitle: { fontFamily: fonts.heading, fontSize: 19, color: colors.ink },
   loading: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
 });
+
+// --- native SDK path ---------------------------------------------------------------------------------------------------
+
+function hasNativeRazorpay(): boolean {
+  try {
+    return !!(NativeModules.RNRazorpayCheckout || TurboModuleRegistry.get('RNRazorpayCheckout'));
+  } catch {
+    return false;
+  }
+}
+
+// Headless: the SDK shows its own checkout screen over the app, so there is nothing to render. Opens once per mounted
+// instance (the parent keys it by Razorpay order id, one mount per payment attempt).
+function NativeCheckout({ keyId, orderId, amountPaise, currency, name, contact, email, onSuccess, onCancel }: Props) {
+  const started = useRef(false);
+  const cb = useRef({ onSuccess, onCancel });
+  cb.current = { onSuccess, onCancel };
+
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    // Loaded here, not at the top of the file, so a missing native module (Expo Go) can never crash the app at startup.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const RazorpayCheckout = require('react-native-razorpay').default;
+    // amount goes as TEXT: the native bridge turns every JS number into a decimal (5000 -> "5000.0"), which Razorpay rejects.
+    const options = {
+      key: keyId,
+      amount: String(Math.round(amountPaise)),
+      currency,
+      order_id: orderId,
+      name: 'Fengle',
+      description: 'Order payment',
+      prefill: { name: name || '', contact: contact || '', email: email || '' },
+      theme: { color: '#4B18A6' },
+    };
+    RazorpayCheckout.open(options)
+      .then((data: { razorpay_payment_id?: string; razorpay_order_id?: string; razorpay_signature?: string }) => {
+        if (data?.razorpay_payment_id && data?.razorpay_order_id && data?.razorpay_signature) {
+          cb.current.onSuccess({ paymentId: data.razorpay_payment_id, orderId: data.razorpay_order_id, signature: data.razorpay_signature });
+        } else {
+          Alert.alert('Payment failed', 'We could not confirm the payment. If money was deducted it will be refunded.');
+          cb.current.onCancel();
+        }
+      })
+      .catch((err: { code?: number; description?: string }) => {
+        // Code 0 is the customer backing out of the checkout screen: no message needed.
+        if (err?.code !== 0) Alert.alert('Payment failed', err?.description || 'Please try again.');
+        cb.current.onCancel();
+      });
+  }, []);
+
+  return null;
+}
+
+export default function RazorpayCheckoutModal(props: Props) {
+  return hasNativeRazorpay() ? <NativeCheckout {...props} /> : <WebViewCheckout {...props} />;
+}

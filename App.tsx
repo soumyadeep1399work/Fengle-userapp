@@ -30,8 +30,11 @@ import { AddressProvider } from './src/context/AddressContext';
 import { CatalogProvider } from './src/context/CatalogContext';
 import LockSheet from './src/components/LockSheet';
 import ClubSheet from './src/components/ClubSheet';
+import NoticePopup from './src/components/NoticePopup';
 import TermsScreen from './src/screens/TermsScreen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fetchProfile } from './src/api/profile';
+import { AGREEMENT_VERSION } from './src/api/agreement';
 import { colors } from './src/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -49,20 +52,42 @@ type GateStatus = 'checking' | 'required' | 'clear';
  */
 function AgreementGate({ isLoggedIn, children }: { isLoggedIn: boolean; children: React.ReactNode }) {
   const [status, setStatus] = useState<GateStatus>('checking');
+  const { user } = useAuth();
+  const userId = user?.id;
+
+  // "This customer already accepted this version of the terms", remembered on the phone. It lets the app open straight away
+  // instead of waiting on a server call every launch (a long spinner on a slow connection); the server is still asked in the
+  // background, and if it says the terms are required again (new version, or the stored flag was stale) the screen appears then.
+  const flagKey = `agreement_ok_v${AGREEMENT_VERSION}_${userId}`;
+  const rememberAccepted = useCallback(() => {
+    AsyncStorage.setItem(flagKey, '1').catch(() => {});
+  }, [flagKey]);
 
   const check = useCallback(async () => {
     if (!isLoggedIn) {
       setStatus('clear');
       return;
     }
-    setStatus('checking');
+    let knownAccepted = false;
     try {
-      const profile = await fetchProfile();
-      setStatus(profile.agreementRequired ? 'required' : 'clear');
+      knownAccepted = (await AsyncStorage.getItem(flagKey)) === '1';
     } catch {
-      setStatus('clear');
+      // No local memory: fall back to asking the server first.
     }
-  }, [isLoggedIn]);
+    setStatus(knownAccepted ? 'clear' : 'checking');
+    try {
+      const profile = await fetchProfile(8000);
+      if (profile.agreementRequired) {
+        AsyncStorage.removeItem(flagKey).catch(() => {});
+        setStatus('required');
+      } else {
+        rememberAccepted();
+        setStatus('clear');
+      }
+    } catch {
+      setStatus('clear'); // fails open: a network hiccup must not lock someone out
+    }
+  }, [isLoggedIn, flagKey, rememberAccepted]);
 
   useEffect(() => {
     check();
@@ -76,7 +101,7 @@ function AgreementGate({ isLoggedIn, children }: { isLoggedIn: boolean; children
     );
   }
   if (isLoggedIn && status === 'required') {
-    return <TermsScreen onAccepted={() => setStatus('clear')} />;
+    return <TermsScreen onAccepted={() => { rememberAccepted(); setStatus('clear'); }} />;
   }
   return <>{children}</>;
 }
@@ -114,6 +139,7 @@ function Main() {
           <RootNavigator />
           <LockSheet />
           <ClubSheet />
+          {isLoggedIn && <NoticePopup />}
         </AgreementGate>
       </NavigationContainer>
     </View>

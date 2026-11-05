@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { NativeScrollEvent, NativeSyntheticEvent, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, fonts, radii } from '../theme';
@@ -31,10 +31,21 @@ export default function TermsScreen({ onAccepted }: { onAccepted: () => void }) 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  // How far from the bottom still counts as "read it all" (phones round sizes, and a fling can stop a few pixels short).
+  const END_SLACK = 40;
+  const sizes = useRef({ view: 0, content: 0 });
+
   function onScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
     if (scrolledToEnd) return;
     const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
-    if (contentOffset.y + layoutMeasurement.height >= contentSize.height - 24) setScrolledToEnd(true);
+    if (contentOffset.y + layoutMeasurement.height >= contentSize.height - END_SLACK) setScrolledToEnd(true);
+  }
+
+  // On a tall screen or a small text size the whole agreement fits without scrolling, so no scroll event ever fires and the
+  // checkbox would stay locked forever. If it all fits, it counts as read.
+  function checkFits() {
+    const { view, content } = sizes.current;
+    if (view > 0 && content > 0 && content <= view + END_SLACK) setScrolledToEnd(true);
   }
 
   async function handleAgree() {
@@ -54,7 +65,16 @@ export default function TermsScreen({ onAccepted }: { onAccepted: () => void }) 
       <Text style={styles.title}>A quick agreement</Text>
       <Text style={styles.subtitle}>Please read and accept our terms to start ordering. This only takes a moment.</Text>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.termsBox} onScroll={onScroll} scrollEventThrottle={64}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.termsBox}
+        onScroll={onScroll}
+        onScrollEndDrag={onScroll}
+        onMomentumScrollEnd={onScroll}
+        scrollEventThrottle={16}
+        onLayout={(e) => { sizes.current.view = e.nativeEvent.layout.height; checkFits(); }}
+        onContentSizeChange={(_w, h) => { sizes.current.content = h; checkFits(); }}
+      >
         <Text style={styles.termsText}>{TERMS_TEXT}</Text>
         {!scrolledToEnd && <Text style={styles.scrollHint}>Scroll to the end to continue</Text>}
       </ScrollView>

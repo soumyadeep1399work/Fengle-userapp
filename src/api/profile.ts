@@ -2,8 +2,8 @@ import { Profile } from '../types';
 import { apiFetch } from './client';
 import { ApiProfile, mapProfile } from './mappers';
 
-export async function fetchProfile(): Promise<Profile> {
-  const { profile } = await apiFetch<{ profile: ApiProfile }>('/profile/me');
+export async function fetchProfile(timeoutMs?: number): Promise<Profile> {
+  const { profile } = await apiFetch<{ profile: ApiProfile }>('/profile/me', timeoutMs ? { timeoutMs } : undefined);
   return mapProfile(profile);
 }
 

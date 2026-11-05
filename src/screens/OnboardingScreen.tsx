@@ -1,26 +1,72 @@
-import React, { useState } from 'react';
-import { Image, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Image, ImageBackground, ImageSourcePropType, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, fonts, spacing } from '../theme';
+import { imageSource } from '../utils/images';
+import { OnboardingSlide, cacheOnboardingSlides, fetchOnboardingSlides, loadCachedOnboardingSlides } from '../api/onboarding';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
 
-const SLIDES = [
-  { img: require('../../assets/onboarding/onboarding-1.jpg'), headline: 'One craving, many kitchens', body: 'Order Bengali, biryani, or dosa — each category is its own kitchen near you.', btn: 'Next' },
-  { img: require('../../assets/onboarding/onboarding-2.jpg'), headline: 'One kitchen at a time', body: 'Your cart holds one category. Nearby kitchens can sometimes club into a single delivery.', btn: 'Next' },
-  { img: require('../../assets/onboarding/onboarding-3.jpg'), headline: "You're set", body: 'UPI or cash on delivery. Track your order live once it is placed.', btn: 'Get started' },
+interface Slide {
+  key: string;
+  img: ImageSourcePropType;
+  headline: string;
+  body: string;
+}
+
+// Shown when the server has no slides or can't be reached (first launch while offline).
+const FALLBACK_SLIDES: Slide[] = [
+  { key: 'f1', img: require('../../assets/onboarding/onboarding-1.jpg'), headline: 'One craving, many kitchens', body: 'Order Bengali, biryani, or dosa — each category is its own kitchen near you.' },
+  { key: 'f2', img: require('../../assets/onboarding/onboarding-2.jpg'), headline: 'One kitchen at a time', body: 'Your cart holds one category. Nearby kitchens can sometimes club into a single delivery.' },
+  { key: 'f3', img: require('../../assets/onboarding/onboarding-3.jpg'), headline: "You're set", body: 'UPI or cash on delivery. Track your order live once it is placed.' },
 ];
+
+function toSlides(list: OnboardingSlide[]): Slide[] {
+  return list.map((s) => ({ key: s.id, img: imageSource(s.imageUrl, 1200), headline: s.headline, body: s.body }));
+}
 
 export default function OnboardingScreen({ navigation }: Props) {
   const [idx, setIdx] = useState(0);
-  const slide = SLIDES[idx];
-  const isLast = idx === SLIDES.length - 1;
+  // null until we know what to show (cache, server or fallback), so the wrong pictures never flash.
+  const [slides, setSlides] = useState<Slide[] | null>(null);
+  const idxRef = useRef(0);
+  idxRef.current = idx;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const cached = await loadCachedOnboardingSlides();
+      if (!cancelled && cached) setSlides(toSlides(cached));
+      try {
+        const fresh = await fetchOnboardingSlides();
+        if (cancelled) return;
+        if (fresh.length > 0) {
+          cacheOnboardingSlides(fresh);
+          fresh.forEach((s) => Image.prefetch(imageSource(s.imageUrl, 1200).uri).catch(() => {}));
+          // Swap in the fresh set unless the customer has already started swiping through the cached one.
+          if (!cached || idxRef.current === 0) setSlides(toSlides(fresh));
+        } else if (!cached) {
+          setSlides(FALLBACK_SLIDES);
+        }
+      } catch {
+        if (!cancelled && !cached) setSlides(FALLBACK_SLIDES);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!slides) return <View style={[styles.bg, { backgroundColor: colors.primary }]} />;
+
+  const slide = slides[Math.min(idx, slides.length - 1)];
+  const isLast = idx >= slides.length - 1;
 
   return (
-    <ImageBackground source={slide.img} style={styles.bg}>
+    <ImageBackground source={slide.img} style={[styles.bg, { backgroundColor: colors.primary }]}>
       <LinearGradient
         colors={['rgba(37,28,33,0.25)', 'rgba(37,28,33,0.92)']}
         locations={[0.4, 1]}
@@ -36,7 +82,7 @@ export default function OnboardingScreen({ navigation }: Props) {
 
         <View style={styles.bottom}>
           <View style={styles.dots}>
-            {SLIDES.map((_, i) => (
+            {slides.map((_, i) => (
               <View key={i} style={[styles.dot, i === idx ? styles.dotActive : styles.dotInactive]} />
             ))}
           </View>
@@ -46,7 +92,7 @@ export default function OnboardingScreen({ navigation }: Props) {
             onPress={() => (isLast ? navigation.replace('Phone') : setIdx((i) => i + 1))}
             style={styles.cta}
           >
-            <Text style={styles.ctaLabel}>{slide.btn}</Text>
+            <Text style={styles.ctaLabel}>{isLast ? 'Get started' : 'Next'}</Text>
           </Pressable>
         </View>
       </SafeAreaView>
